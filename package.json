@@ -1,0 +1,22 @@
+{
+  "name": "collector-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot that collects content into Notion database",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.15",
+    "grammy": "^1.30.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
