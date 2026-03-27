@@ -34,6 +34,18 @@ type MyContext = Context & { session: SessionData }
 
 const bot = new Bot<MyContext>(BOT_TOKEN)
 
+// Error handler
+bot.catch((err) => {
+  console.error('Bot error:', err.message || err)
+})
+
+// Log all incoming updates (first middleware)
+bot.use(async (ctx, next) => {
+  const keys = Object.keys(ctx.update).filter(k => k !== 'update_id')
+  console.log('[IN] update=%d from=%d chat=%d keys=%s text=%s', ctx.update.update_id, ctx.from?.id, ctx.chat?.id, keys.join(','), ctx.message?.text?.slice(0, 80) || ctx.message?.caption?.slice(0, 80) || ctx.callbackQuery?.data || '-')
+  await next()
+})
+
 bot.use(session({ initial: defaultSession }))
 
 // Only allow owner
