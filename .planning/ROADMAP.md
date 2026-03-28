@@ -56,7 +56,7 @@ Plans:
   4. Bot starts via PM2 on VPS and processes a test message end-to-end without errors
 **Plans:** 2 plans in 2 waves
 Plans:
-- [ ] 03-01-PLAN.md -- Remove Notion dead code, config vars, and @notionhq/client dependency (CONF-01, CONF-02, CONF-03, CONF-04)
+- [x] 03-01-PLAN.md -- Remove Notion dead code, config vars, and @notionhq/client dependency (CONF-01, CONF-02, CONF-03, CONF-04)
 - [ ] 03-02-PLAN.md -- Deploy to VPS, verify PM2 startup and end-to-end test (CONF-05)
 
 ## Progress
@@ -65,4 +65,4 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. WebDAV Foundation | 2/2 | Complete   | 2026-03-28 |
 | 2. Content Pipeline | 3/3 | Complete | 2026-03-28 |
-| 3. Cutover & Deploy | 0/2 | Not started | - |
+| 3. Cutover & Deploy | 1/2 | In progress | - |

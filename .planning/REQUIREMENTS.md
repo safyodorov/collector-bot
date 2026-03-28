@@ -55,10 +55,10 @@
 
 ### Config & Cleanup
 
-- [ ] **CONF-01**: Переменные окружения обновлены: добавлены YANDEX_WEBDAV_LOGIN, YANDEX_WEBDAV_PASSWORD (или YANDEX_DISK_TOKEN), VAULT_PATH
-- [ ] **CONF-02**: Переменные NOTION_TOKEN и NOTION_DATABASE_ID удалены из config.ts
-- [ ] **CONF-03**: Зависимость @notionhq/client удалена из package.json
-- [ ] **CONF-04**: UI-тексты бота не упоминают Notion (переименование saveToNotion → saveEntry и т.д.)
+- [x] **CONF-01**: Переменные окружения обновлены: добавлены YANDEX_WEBDAV_LOGIN, YANDEX_WEBDAV_PASSWORD (или YANDEX_DISK_TOKEN), VAULT_PATH
+- [x] **CONF-02**: Переменные NOTION_TOKEN и NOTION_DATABASE_ID удалены из config.ts
+- [x] **CONF-03**: Зависимость @notionhq/client удалена из package.json
+- [x] **CONF-04**: UI-тексты бота не упоминают Notion (переименование saveToNotion → saveEntry и т.д.)
 - [ ] **CONF-05**: Бот стартует и работает через PM2 на VPS без ошибок
 
 ## v2 Requirements
@@ -123,10 +123,10 @@
 | TAGS-04 | Phase 2 | Complete |
 | DEDU-01 | Phase 2 | Complete |
 | DEDU-02 | Phase 2 | Complete |
-| CONF-01 | Phase 3 | Pending |
-| CONF-02 | Phase 3 | Pending |
-| CONF-03 | Phase 3 | Pending |
-| CONF-04 | Phase 3 | Pending |
+| CONF-01 | Phase 3 | Complete |
+| CONF-02 | Phase 3 | Complete |
+| CONF-03 | Phase 3 | Complete |
+| CONF-04 | Phase 3 | Complete |
 | CONF-05 | Phase 3 | Pending |
 
 **Coverage:**

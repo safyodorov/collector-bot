@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-03-28T06:42:04.289Z"
-last_activity: 2026-03-28
+status: executing
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-28T06:49:00Z"
+last_activity: 2026-03-28 -- Phase 03 Plan 01 complete (Notion removal)
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 0
+  total_plans: 7
+  completed_plans: 6
+  percent: 86
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Контент из Telegram попадает в Obsidian vault быстро, с категориями, и доступен на всех устройствах через Яндекс.Диск.
-**Current focus:** Phase 02 — content-pipeline
+**Current focus:** Phase 03 — cutover-deploy
 
 ## Current Position
 
-Phase: 02 (content-pipeline) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-03-28
+Phase: 03 (cutover-deploy) — EXECUTING
+Plan: 2 of 2
+Status: Executing Phase 03
+Last activity: 2026-03-28 -- Phase 03 Plan 01 complete (Notion removal)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [████████░░] 86%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02 P02 | 2min | 1 tasks | 1 files |
 | Phase 02 P01 | 3min | 2 tasks | 7 files |
 | Phase 02 P03 | 12min | 3 tasks | 2 files |
+| Phase 03 P01 | 2min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,7 @@ Recent decisions affecting current work:
 - [Phase 02]: Title in H1 heading not YAML frontmatter to avoid colon issues
 - [Phase 02]: Photos stored in module-level Map not grammY session to avoid binary serialization
 - [Phase 02]: Dedup check after title input when filename is known, not on content receipt
+- [Phase 03]: .env gitignored so Notion cleanup there is local-only; VPS .env managed in deploy plan
 
 ### Pending Todos
 
@@ -86,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T06:42:04.286Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-03-28T06:49:00Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None
