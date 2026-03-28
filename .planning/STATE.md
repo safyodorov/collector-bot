@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-28T06:36:07.564Z"
+status: verifying
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-03-28T06:42:04.289Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 
 Phase: 02 (content-pipeline) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-28
 
 Progress: [░░░░░░░░░░] 0%
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P02 | 8min | 3 tasks | 2 files |
 | Phase 02 P02 | 2min | 1 tasks | 1 files |
 | Phase 02 P01 | 3min | 2 tasks | 7 files |
+| Phase 02 P03 | 12min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Recent decisions affecting current work:
 - [Phase 02]: Callback data prefixes: nav: for navigation, tag: for tags, title: for title, dup: for dedup
 - [Phase 02]: vitest chosen as test framework (ESM-native, fast)
 - [Phase 02]: Title in H1 heading not YAML frontmatter to avoid colon issues
+- [Phase 02]: Photos stored in module-level Map not grammY session to avoid binary serialization
+- [Phase 02]: Dedup check after title input when filename is known, not on content receipt
 
 ### Pending Todos
 
@@ -83,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T06:36:07.562Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-28T06:42:04.286Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None

@@ -43,7 +43,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md -- Pure functions: markdown generator, filename sanitizer, category/tag config
 - [x] 02-02-PLAN.md -- Two-level navigation keyboards (category, subcategory, tags)
-- [ ] 02-03-PLAN.md -- Storage orchestrator + bot.ts rewrite (state machine, photo pipeline, dedup)
+- [x] 02-03-PLAN.md -- Storage orchestrator + bot.ts rewrite (state machine, photo pipeline, dedup)
 
 ### Phase 3: Cutover & Deploy
 **Goal**: Bot runs on VPS with WebDAV only, no Notion traces remain
@@ -56,7 +56,7 @@ Plans:
   4. Bot starts via PM2 on VPS and processes a test message end-to-end without errors
 **Plans:** 3 plans in 2 waves
 Plans:
-- [ ] 02-01-PLAN.md -- Pure functions: markdown generator, filename sanitizer, category/tag config
+- [x] 02-01-PLAN.md -- Pure functions: markdown generator, filename sanitizer, category/tag config
 - [x] 02-02-PLAN.md -- Two-level navigation keyboards (category, subcategory, tags)
 - [ ] 02-03-PLAN.md -- Storage orchestrator + bot.ts rewrite (state machine, photo pipeline, dedup)
 

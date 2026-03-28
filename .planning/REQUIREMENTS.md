@@ -24,9 +24,9 @@
 
 ### Photo Pipeline
 
-- [ ] **PHOT-01**: Фото скачивается с Telegram API сразу при получении сообщения (до истечения URL)
-- [ ] **PHOT-02**: Фото загружается на WebDAV в vault/attachments/ с уникальным именем
-- [ ] **PHOT-03**: В заметке фото вставляется как `![](attachments/filename.jpg)`
+- [x] **PHOT-01**: Фото скачивается с Telegram API сразу при получении сообщения (до истечения URL)
+- [x] **PHOT-02**: Фото загружается на WebDAV в vault/attachments/ с уникальным именем
+- [x] **PHOT-03**: В заметке фото вставляется как `![](attachments/filename.jpg)`
 
 ### Folder Structure
 
@@ -50,8 +50,8 @@
 
 ### Deduplication
 
-- [ ] **DEDU-01**: Дубликаты определяются по существованию файла с тем же именем (PROPFIND)
-- [ ] **DEDU-02**: При обнаружении дубликата пользователь видит inline-клавиатуру с выбором: сохранить как новый или отменить
+- [x] **DEDU-01**: Дубликаты определяются по существованию файла с тем же именем (PROPFIND)
+- [x] **DEDU-02**: При обнаружении дубликата пользователь видит inline-клавиатуру с выбором: сохранить как новый или отменить
 
 ### Config & Cleanup
 
@@ -107,9 +107,9 @@
 | MKDN-03 | Phase 2 | Complete |
 | MKDN-04 | Phase 2 | Complete |
 | MKDN-05 | Phase 2 | Complete |
-| PHOT-01 | Phase 2 | Pending |
-| PHOT-02 | Phase 2 | Pending |
-| PHOT-03 | Phase 2 | Pending |
+| PHOT-01 | Phase 2 | Complete |
+| PHOT-02 | Phase 2 | Complete |
+| PHOT-03 | Phase 2 | Complete |
 | FOLD-01 | Phase 1 | Complete |
 | FOLD-02 | Phase 1 | Complete |
 | FOLD-03 | Phase 2 | Complete |
@@ -121,8 +121,8 @@
 | TAGS-02 | Phase 2 | Complete |
 | TAGS-03 | Phase 2 | Complete |
 | TAGS-04 | Phase 2 | Complete |
-| DEDU-01 | Phase 2 | Pending |
-| DEDU-02 | Phase 2 | Pending |
+| DEDU-01 | Phase 2 | Complete |
+| DEDU-02 | Phase 2 | Complete |
 | CONF-01 | Phase 3 | Pending |
 | CONF-02 | Phase 3 | Pending |
 | CONF-03 | Phase 3 | Pending |
