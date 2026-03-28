@@ -12,13 +12,10 @@ function required(name: string): string {
 }
 
 export const BOT_TOKEN = required('TELEGRAM_BOT_TOKEN')
-export const NOTION_TOKEN = required('NOTION_TOKEN')
-export const NOTION_DATABASE_ID = required('NOTION_DATABASE_ID')
 export const YANDEX_DISK_TOKEN = required('YANDEX_DISK_TOKEN')
 export const WEBDAV_URL = 'https://webdav.yandex.ru'
 export const VAULT_PATH = process.env.VAULT_PATH || '/vault'
 
-export const DEFAULT_HASHTAGS = (process.env.DEFAULT_HASHTAGS || 'завтраки,супы,выпечка,мясо,салаты,десерты,напитки,соусы,заготовки,другое').split(',')
 export const MAX_VIDEO_SIZE_MB = parseInt(process.env.MAX_VIDEO_SIZE_MB || '500', 10)
 export const VIDEO_QUALITY = process.env.VIDEO_QUALITY || '1080'
 
