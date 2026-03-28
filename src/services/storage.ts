@@ -1,4 +1,4 @@
-import { putFile, exists } from './webdav.js'
+import { putFile, exists, ensureDir } from './webdav.js'
 import { buildMarkdown, type NoteData } from './markdown.js'
 import { buildFilename } from '../utils/text-utils.js'
 import { VAULT_PATH } from '../config.js'
@@ -43,6 +43,12 @@ export async function saveEntry(
   const date = new Date().toISOString().slice(0, 10)
   const filename = buildFilename(data.title, date)
   const notePath = `${VAULT_PATH}${data.folderPath}${filename}`
+
+  // Ensure target folder and attachments folder exist
+  await ensureDir(`${VAULT_PATH}${data.folderPath}`)
+  if (photoBuffers.length > 0) {
+    await ensureDir(`${VAULT_PATH}/attachments`)
+  }
 
   // Upload photos first so attachments exist when Obsidian renders the note
   const attachments: string[] = []
