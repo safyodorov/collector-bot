@@ -47,3 +47,33 @@ export function detectVideoUrl(text: string): string | null {
   }
   return null
 }
+
+const FORBIDDEN_CHARS = /[*"\\/<>:|?#^\[\]]/g
+
+/** Sanitize a string for use as a filename */
+export function sanitizeFilename(title: string, maxBytes = 200): string {
+  let name = title
+    .replace(FORBIDDEN_CHARS, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/ /g, '_')
+
+  if (!name || name === '.' || name === '..') {
+    return 'Без-названия'
+  }
+
+  // Truncate at character boundary until within byte limit
+  while (Buffer.byteLength(name, 'utf8') > maxBytes) {
+    name = name.slice(0, -1)
+  }
+
+  // Remove trailing dots/underscores
+  name = name.replace(/[._]+$/, '')
+
+  return name || 'Без-названия'
+}
+
+/** Build a filename from title and date */
+export function buildFilename(title: string, date: string): string {
+  return `${date}_${sanitizeFilename(title)}.md`
+}

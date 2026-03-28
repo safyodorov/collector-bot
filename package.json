@@ -11,12 +11,13 @@
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
-    "grammy": "^1.30.0",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "grammy": "^1.30.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.2"
   }
 }
