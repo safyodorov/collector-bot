@@ -7,12 +7,12 @@
 
 ### WebDAV Client
 
-- [ ] **WDAV-01**: Бот подключается к Яндекс.Диску через WebDAV с OAuth-токеном
-- [ ] **WDAV-02**: Бот создаёт директории на WebDAV (MKCOL) с кэшированием созданных
-- [ ] **WDAV-03**: Бот загружает текстовые файлы на WebDAV (PUT) с корректной кодировкой кириллицы
-- [ ] **WDAV-04**: Бот загружает бинарные файлы (фото) на WebDAV (PUT)
-- [ ] **WDAV-05**: Бот проверяет существование файла на WebDAV (PROPFIND)
-- [ ] **WDAV-06**: Бот повторяет неудачные запросы с экспоненциальным backoff (429, 5xx)
+- [x] **WDAV-01**: Бот подключается к Яндекс.Диску через WebDAV с OAuth-токеном
+- [x] **WDAV-02**: Бот создаёт директории на WebDAV (MKCOL) с кэшированием созданных
+- [x] **WDAV-03**: Бот загружает текстовые файлы на WebDAV (PUT) с корректной кодировкой кириллицы
+- [x] **WDAV-04**: Бот загружает бинарные файлы (фото) на WebDAV (PUT)
+- [x] **WDAV-05**: Бот проверяет существование файла на WebDAV (PROPFIND)
+- [x] **WDAV-06**: Бот повторяет неудачные запросы с экспоненциальным backoff (429, 5xx)
 
 ### Markdown Generation
 
@@ -96,12 +96,12 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WDAV-01 | Phase 1 | Pending |
-| WDAV-02 | Phase 1 | Pending |
-| WDAV-03 | Phase 1 | Pending |
-| WDAV-04 | Phase 1 | Pending |
-| WDAV-05 | Phase 1 | Pending |
-| WDAV-06 | Phase 1 | Pending |
+| WDAV-01 | Phase 1 | Complete |
+| WDAV-02 | Phase 1 | Complete |
+| WDAV-03 | Phase 1 | Complete |
+| WDAV-04 | Phase 1 | Complete |
+| WDAV-05 | Phase 1 | Complete |
+| WDAV-06 | Phase 1 | Complete |
 | MKDN-01 | Phase 2 | Pending |
 | MKDN-02 | Phase 2 | Pending |
 | MKDN-03 | Phase 2 | Pending |

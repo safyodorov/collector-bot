@@ -24,7 +24,7 @@ Replace Notion API storage with Yandex.Disk WebDAV in three phases: build the We
   5. Bot retries a failed request and succeeds on subsequent attempt
 **Plans:** 2 plans
 Plans:
-- [ ] 01-01-PLAN.md -- WebDAV client module + config exports (WDAV-01 through WDAV-06)
+- [x] 01-01-PLAN.md -- WebDAV client module + config exports (WDAV-01 through WDAV-06)
 - [ ] 01-02-PLAN.md -- Vault folder structure + integration test (FOLD-01, FOLD-02)
 
 ### Phase 2: Content Pipeline
