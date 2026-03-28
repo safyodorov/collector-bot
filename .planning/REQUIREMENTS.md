@@ -30,9 +30,23 @@
 
 ### Folder Structure
 
-- [ ] **FOLD-01**: Vault содержит папки: Рецепты/, Работа/, Идеи/, Разное/, attachments/
-- [ ] **FOLD-02**: Хэштеги маппятся на папки: рецепт/еда/готовка → Рецепты, работа/wb/wildberries → Работа, идея/проект → Идеи, остальное → Разное
-- [ ] **FOLD-03**: Папки создаются автоматически при первом использовании (MKCOL)
+- [ ] **FOLD-01**: Vault содержит 27 папок + attachments/: Бизнес(WB, Ozon, Поставщики, Финансы, Аналитика, Контент, Налоги), Ландшафт(Растения, Проекты, Благоустройство), ТОС(Документы, Протоколы, Инициативы), Семья(Дети, Дом), Рецепты(Супы, Мясо, Выпечка, Напитки), Новости, Идеи, Inbox
+- [ ] **FOLD-02**: Все папки создаются при первом запуске бота через MKCOL (если не существуют)
+- [ ] **FOLD-03**: callback_data маппится на путь (бизнес → vault/Бизнес/, бизнес_wb → vault/Бизнес/WB/ и т.д.)
+
+### Navigation (Inline Keyboards)
+
+- [ ] **NAVG-01**: Первый уровень — 8 кнопок категорий: Бизнес, Ландшафт, ТОС, Рецепты, Семья, Новости, Идеи, Inbox
+- [ ] **NAVG-02**: Второй уровень — подкатегории для категорий с подпапками (Бизнес→7 кнопок, Ландшафт→3, ТОС→3, Семья→2, Рецепты→4) + кнопка "← Просто в {категория}"
+- [ ] **NAVG-03**: Категории без подпапок (Новости, Идеи, Inbox) сохраняют сразу, без второго шага
+- [ ] **NAVG-04**: Кнопка Inbox — быстрое сохранение без категоризации в vault/Inbox/
+
+### Tags
+
+- [ ] **TAGS-01**: После выбора папки бот предлагает теги: набор зависит от выбранной категории
+- [ ] **TAGS-02**: Кнопка "Без тегов" — сохраняет без тегов
+- [ ] **TAGS-03**: Кнопка "Написать свой" — пользователь вводит теги через запятую
+- [ ] **TAGS-04**: Теги записываются в YAML frontmatter в формате tags: list без #
 
 ### Deduplication
 
@@ -97,8 +111,16 @@
 | PHOT-02 | Phase 2 | Pending |
 | PHOT-03 | Phase 2 | Pending |
 | FOLD-01 | Phase 1 | Pending |
-| FOLD-02 | Phase 2 | Pending |
-| FOLD-03 | Phase 1 | Pending |
+| FOLD-02 | Phase 1 | Pending |
+| FOLD-03 | Phase 2 | Pending |
+| NAVG-01 | Phase 2 | Pending |
+| NAVG-02 | Phase 2 | Pending |
+| NAVG-03 | Phase 2 | Pending |
+| NAVG-04 | Phase 2 | Pending |
+| TAGS-01 | Phase 2 | Pending |
+| TAGS-02 | Phase 2 | Pending |
+| TAGS-03 | Phase 2 | Pending |
+| TAGS-04 | Phase 2 | Pending |
 | DEDU-01 | Phase 2 | Pending |
 | DEDU-02 | Phase 2 | Pending |
 | CONF-01 | Phase 3 | Pending |
@@ -108,8 +130,8 @@
 | CONF-05 | Phase 3 | Pending |
 
 **Coverage:**
-- v1 requirements: 24 total
-- Mapped to phases: 24
+- v1 requirements: 32 total
+- Mapped to phases: 32
 - Unmapped: 0 ✓
 
 ---
