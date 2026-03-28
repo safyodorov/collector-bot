@@ -59,7 +59,7 @@
 - [x] **CONF-02**: Переменные NOTION_TOKEN и NOTION_DATABASE_ID удалены из config.ts
 - [x] **CONF-03**: Зависимость @notionhq/client удалена из package.json
 - [x] **CONF-04**: UI-тексты бота не упоминают Notion (переименование saveToNotion → saveEntry и т.д.)
-- [ ] **CONF-05**: Бот стартует и работает через PM2 на VPS без ошибок
+- [x] **CONF-05**: Бот стартует и работает через PM2 на VPS без ошибок
 
 ## v2 Requirements
 
@@ -127,7 +127,7 @@
 | CONF-02 | Phase 3 | Complete |
 | CONF-03 | Phase 3 | Complete |
 | CONF-04 | Phase 3 | Complete |
-| CONF-05 | Phase 3 | Pending |
+| CONF-05 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 32 total

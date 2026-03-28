@@ -57,7 +57,7 @@ Plans:
 **Plans:** 2 plans in 2 waves
 Plans:
 - [x] 03-01-PLAN.md -- Remove Notion dead code, config vars, and @notionhq/client dependency (CONF-01, CONF-02, CONF-03, CONF-04)
-- [ ] 03-02-PLAN.md -- Deploy to VPS, verify PM2 startup and end-to-end test (CONF-05)
+- [x] 03-02-PLAN.md -- Deploy to VPS, verify PM2 startup and end-to-end test (CONF-05)
 
 ## Progress
 
