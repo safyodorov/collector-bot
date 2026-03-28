@@ -41,7 +41,7 @@ Plans:
   7. Generated filenames are sanitized and contain date + title (e.g. 2026-03-28_Шарлотка.md)
 **Plans:** 3 plans in 2 waves
 Plans:
-- [ ] 02-01-PLAN.md -- Pure functions: markdown generator, filename sanitizer, category/tag config
+- [x] 02-01-PLAN.md -- Pure functions: markdown generator, filename sanitizer, category/tag config
 - [x] 02-02-PLAN.md -- Two-level navigation keyboards (category, subcategory, tags)
 - [ ] 02-03-PLAN.md -- Storage orchestrator + bot.ts rewrite (state machine, photo pipeline, dedup)
 
@@ -57,7 +57,7 @@ Plans:
 **Plans:** 3 plans in 2 waves
 Plans:
 - [ ] 02-01-PLAN.md -- Pure functions: markdown generator, filename sanitizer, category/tag config
-- [ ] 02-02-PLAN.md -- Two-level navigation keyboards (category, subcategory, tags)
+- [x] 02-02-PLAN.md -- Two-level navigation keyboards (category, subcategory, tags)
 - [ ] 02-03-PLAN.md -- Storage orchestrator + bot.ts rewrite (state machine, photo pipeline, dedup)
 
 ## Progress

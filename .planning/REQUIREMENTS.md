@@ -16,11 +16,11 @@
 
 ### Markdown Generation
 
-- [ ] **MKDN-01**: Бот генерирует Obsidian-совместимый Markdown с YAML frontmatter (tags, source, date, type, content_hash)
-- [ ] **MKDN-02**: Frontmatter использует формат tags (список без #), совместимый с Obsidian 1.9+
-- [ ] **MKDN-03**: Тело заметки содержит текст контента, ссылки на фото и видео
-- [ ] **MKDN-04**: Имя файла генерируется из даты и заголовка: `2026-03-28_Шарлотка.md`
-- [ ] **MKDN-05**: Имена файлов санитизируются (запрещённые символы, лимит ~120 символов/240 байт)
+- [x] **MKDN-01**: Бот генерирует Obsidian-совместимый Markdown с YAML frontmatter (tags, source, date, type, content_hash)
+- [x] **MKDN-02**: Frontmatter использует формат tags (список без #), совместимый с Obsidian 1.9+
+- [x] **MKDN-03**: Тело заметки содержит текст контента, ссылки на фото и видео
+- [x] **MKDN-04**: Имя файла генерируется из даты и заголовка: `2026-03-28_Шарлотка.md`
+- [x] **MKDN-05**: Имена файлов санитизируются (запрещённые символы, лимит ~120 символов/240 байт)
 
 ### Photo Pipeline
 
@@ -32,7 +32,7 @@
 
 - [x] **FOLD-01**: Vault содержит 27 папок + attachments/: Бизнес(WB, Ozon, Поставщики, Финансы, Аналитика, Контент, Налоги), Ландшафт(Растения, Проекты, Благоустройство), ТОС(Документы, Протоколы, Инициативы), Семья(Дети, Дом), Рецепты(Супы, Мясо, Выпечка, Напитки), Новости, Идеи, Inbox
 - [x] **FOLD-02**: Все папки создаются при первом запуске бота через MKCOL (если не существуют)
-- [ ] **FOLD-03**: callback_data маппится на путь (бизнес → vault/Бизнес/, бизнес_wb → vault/Бизнес/WB/ и т.д.)
+- [x] **FOLD-03**: callback_data маппится на путь (бизнес → vault/Бизнес/, бизнес_wb → vault/Бизнес/WB/ и т.д.)
 
 ### Navigation (Inline Keyboards)
 
@@ -46,7 +46,7 @@
 - [x] **TAGS-01**: После выбора папки бот предлагает теги: набор зависит от выбранной категории
 - [x] **TAGS-02**: Кнопка "Без тегов" — сохраняет без тегов
 - [x] **TAGS-03**: Кнопка "Написать свой" — пользователь вводит теги через запятую
-- [ ] **TAGS-04**: Теги записываются в YAML frontmatter в формате tags: list без #
+- [x] **TAGS-04**: Теги записываются в YAML frontmatter в формате tags: list без #
 
 ### Deduplication
 
@@ -102,17 +102,17 @@
 | WDAV-04 | Phase 1 | Complete |
 | WDAV-05 | Phase 1 | Complete |
 | WDAV-06 | Phase 1 | Complete |
-| MKDN-01 | Phase 2 | Pending |
-| MKDN-02 | Phase 2 | Pending |
-| MKDN-03 | Phase 2 | Pending |
-| MKDN-04 | Phase 2 | Pending |
-| MKDN-05 | Phase 2 | Pending |
+| MKDN-01 | Phase 2 | Complete |
+| MKDN-02 | Phase 2 | Complete |
+| MKDN-03 | Phase 2 | Complete |
+| MKDN-04 | Phase 2 | Complete |
+| MKDN-05 | Phase 2 | Complete |
 | PHOT-01 | Phase 2 | Pending |
 | PHOT-02 | Phase 2 | Pending |
 | PHOT-03 | Phase 2 | Pending |
 | FOLD-01 | Phase 1 | Complete |
 | FOLD-02 | Phase 1 | Complete |
-| FOLD-03 | Phase 2 | Pending |
+| FOLD-03 | Phase 2 | Complete |
 | NAVG-01 | Phase 2 | Complete |
 | NAVG-02 | Phase 2 | Complete |
 | NAVG-03 | Phase 2 | Complete |
@@ -120,7 +120,7 @@
 | TAGS-01 | Phase 2 | Complete |
 | TAGS-02 | Phase 2 | Complete |
 | TAGS-03 | Phase 2 | Complete |
-| TAGS-04 | Phase 2 | Pending |
+| TAGS-04 | Phase 2 | Complete |
 | DEDU-01 | Phase 2 | Pending |
 | DEDU-02 | Phase 2 | Pending |
 | CONF-01 | Phase 3 | Pending |
