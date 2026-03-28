@@ -6,7 +6,7 @@ Replace Notion API storage with Yandex.Disk WebDAV in three phases: build the We
 
 ## Phases
 
-- [ ] **Phase 1: WebDAV Foundation** - HTTP transport layer and vault directory structure on Yandex.Disk
+- [x] **Phase 1: WebDAV Foundation** - HTTP transport layer and vault directory structure on Yandex.Disk (completed 2026-03-28)
 - [ ] **Phase 2: Content Pipeline** - Markdown generation, photo handling, two-level navigation, tags, folder routing, and deduplication
 - [ ] **Phase 3: Cutover & Deploy** - Remove Notion, update config, rename UI texts, deploy to VPS
 
@@ -22,10 +22,10 @@ Replace Notion API storage with Yandex.Disk WebDAV in three phases: build the We
   3. Bot uploads a text file with Cyrillic name to Yandex.Disk and the file is readable via WebDAV
   4. Bot uploads a binary file (photo) to Yandex.Disk attachments/ and the file is intact
   5. Bot retries a failed request and succeeds on subsequent attempt
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 01-01-PLAN.md -- WebDAV client module + config exports (WDAV-01 through WDAV-06)
-- [ ] 01-02-PLAN.md -- Vault folder structure + integration test (FOLD-01, FOLD-02)
+- [x] 01-02-PLAN.md -- Vault folder structure + integration test (FOLD-01, FOLD-02)
 
 ### Phase 2: Content Pipeline
 **Goal**: Bot saves incoming Telegram content as Obsidian-compatible notes with photos, correct folders, and dedup
@@ -56,6 +56,6 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. WebDAV Foundation | 0/2 | Planning | - |
+| 1. WebDAV Foundation | 2/2 | Complete   | 2026-03-28 |
 | 2. Content Pipeline | 0/0 | Not started | - |
 | 3. Cutover & Deploy | 0/0 | Not started | - |
