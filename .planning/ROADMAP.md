@@ -22,7 +22,10 @@ Replace Notion API storage with Yandex.Disk WebDAV in three phases: build the We
   3. Bot uploads a text file with Cyrillic name to Yandex.Disk and the file is readable via WebDAV
   4. Bot uploads a binary file (photo) to Yandex.Disk attachments/ and the file is intact
   5. Bot retries a failed request and succeeds on subsequent attempt
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 01-01-PLAN.md -- WebDAV client module + config exports (WDAV-01 through WDAV-06)
+- [ ] 01-02-PLAN.md -- Vault folder structure + integration test (FOLD-01, FOLD-02)
 
 ### Phase 2: Content Pipeline
 **Goal**: Bot saves incoming Telegram content as Obsidian-compatible notes with photos, correct folders, and dedup
@@ -53,6 +56,6 @@ Replace Notion API storage with Yandex.Disk WebDAV in three phases: build the We
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. WebDAV Foundation | 0/0 | Not started | - |
+| 1. WebDAV Foundation | 0/2 | Planning | - |
 | 2. Content Pipeline | 0/0 | Not started | - |
 | 3. Cutover & Deploy | 0/0 | Not started | - |
