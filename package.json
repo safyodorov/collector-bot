@@ -1,7 +1,7 @@
 {
   "name": "collector-bot",
   "version": "1.0.0",
-  "description": "Telegram bot that collects content into Notion database",
+  "description": "Telegram bot that collects content into Obsidian vault via WebDAV",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -10,7 +10,6 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@notionhq/client": "^2.2.15",
     "dotenv": "^16.4.7",
     "grammy": "^1.30.0"
   },
