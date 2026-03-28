@@ -11,6 +11,7 @@ interface SessionData {
   contentType: ContentType
   text: string
   source: string
+  sourceUrl: string
   imageFileIds: string[]
   originalUrl: string
   selectedFolder: string      // resolved vault path e.g. "/Бизнес/WB/"
@@ -25,6 +26,7 @@ function defaultSession(): SessionData {
     contentType: 'текст',
     text: '',
     source: '',
+    sourceUrl: '',
     imageFileIds: [],
     originalUrl: '',
     selectedFolder: '',
@@ -85,8 +87,29 @@ bot.command('cancel', async (ctx) => {
   await ctx.reply('Отменено.')
 })
 
+// Extract source name + link from forwarded messages
+function extractSource(origin: any): { name: string; url: string } {
+  if (!origin) return { name: '', url: '' }
+  if (origin.type === 'channel') {
+    const title = origin.chat?.title || 'канал'
+    const username = origin.chat?.username
+    const url = username ? `https://t.me/${username}` : ''
+    return { name: title, url }
+  }
+  if (origin.type === 'user') {
+    const user = origin.sender_user
+    const name = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'пользователь'
+    const url = user?.username ? `https://t.me/${user.username}` : ''
+    return { name, url }
+  }
+  if (origin.type === 'hidden_user') {
+    return { name: origin.sender_user_name || 'скрытый пользователь', url: '' }
+  }
+  return { name: 'пересланное', url: '' }
+}
+
 // Handle incoming content
-async function processNewContent(ctx: MyContext, contentType: ContentType, text: string, source: string, imageFileIds: string[], originalUrl: string) {
+async function processNewContent(ctx: MyContext, contentType: ContentType, text: string, source: string, sourceUrl: string, imageFileIds: string[], originalUrl: string) {
   const hash = contentHash(text || originalUrl || imageFileIds.join(','))
 
   // Download photo bytes immediately (before categorization starts)
@@ -106,6 +129,7 @@ async function processNewContent(ctx: MyContext, contentType: ContentType, text:
   ctx.session.contentType = contentType
   ctx.session.text = text
   ctx.session.source = source
+  ctx.session.sourceUrl = sourceUrl
   ctx.session.imageFileIds = imageFileIds
   ctx.session.originalUrl = originalUrl
   ctx.session.hash = hash
@@ -156,18 +180,13 @@ bot.on('message:text', async (ctx) => {
   const videoUrl = detectVideoUrl(text)
 
   if (videoUrl) {
-    await processNewContent(ctx, 'видео', text, '', [], urlNormalize(videoUrl))
+    const { name, url } = extractSource(ctx.message.forward_origin)
+    await processNewContent(ctx, 'видео', text, name, url, [], urlNormalize(videoUrl))
   } else if (ctx.message.forward_origin) {
-    const origin = ctx.message.forward_origin
-    let source = 'Пересланное сообщение'
-    if (origin.type === 'channel') {
-      source = `Переслано из ${origin.chat.title || origin.chat.username || 'канала'}`
-    } else if (origin.type === 'user') {
-      source = `Переслано от ${origin.sender_user.first_name}`
-    }
-    await processNewContent(ctx, 'пересланное', text, source, [], '')
+    const { name, url } = extractSource(ctx.message.forward_origin)
+    await processNewContent(ctx, 'пересланное', text, name, url, [], '')
   } else {
-    await processNewContent(ctx, 'текст', text, '', [], '')
+    await processNewContent(ctx, 'текст', text, '', '', [], '')
   }
 })
 
@@ -183,18 +202,9 @@ bot.on('message:photo', async (ctx) => {
   const photo = ctx.message.photo
   const largest = photo[photo.length - 1]!
   const caption = ctx.message.caption || ''
-  let source = ''
+  const { name, url } = extractSource(ctx.message.forward_origin)
 
-  if (ctx.message.forward_origin) {
-    const origin = ctx.message.forward_origin
-    if (origin.type === 'channel') {
-      source = `Переслано из ${origin.chat.title || 'канала'}`
-    } else if (origin.type === 'user') {
-      source = `Переслано от ${origin.sender_user.first_name}`
-    }
-  }
-
-  await processNewContent(ctx, 'фото', caption, source, [largest.file_id], '')
+  await processNewContent(ctx, 'фото', caption, name, url, [largest.file_id], '')
 })
 
 // Document messages (forwarded files, videos from channels)
@@ -208,22 +218,11 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
 
   const caption = msg.caption || ''
   const text = caption || msg.document?.file_name || 'Документ'
-  let source = ''
   const videoUrl = detectVideoUrl(text)
-
-  if (ctx.message.forward_origin) {
-    const origin = ctx.message.forward_origin
-    if (origin.type === 'channel') {
-      source = `Переслано из ${(origin as any).chat?.title || 'канала'}`
-    } else if (origin.type === 'user') {
-      source = `Переслано от ${(origin as any).sender_user?.first_name || 'пользователя'}`
-    } else {
-      source = 'Пересланное сообщение'
-    }
-  }
+  const { name, url } = extractSource(ctx.message.forward_origin)
 
   const contentType: ContentType = videoUrl ? 'видео' : 'пересланное'
-  await processNewContent(ctx, contentType, text, source, [], videoUrl ? urlNormalize(videoUrl) : '')
+  await processNewContent(ctx, contentType, text, name, url, [], videoUrl ? urlNormalize(videoUrl) : '')
 })
 
 // Callback queries
@@ -438,6 +437,7 @@ async function doSave(ctx: MyContext, title: string) {
       text: s.text,
       contentType: s.contentType,
       source: s.source,
+      sourceUrl: s.sourceUrl,
       originalUrl: s.originalUrl,
       videoYaDiskUrl: '',
       hash: s.hash,
@@ -446,7 +446,8 @@ async function doSave(ctx: MyContext, title: string) {
     }, photoBuffers)
 
     const tagsDisplay = s.selectedTags.length > 0 ? s.selectedTags.map(t => '#' + t).join(' ') : 'нет'
-    await ctx.reply(`Сохранено: ${result.title}\n${result.path}\nТеги: ${tagsDisplay}`)
+    const sourceDisplay = s.source ? `\nИсточник: ${s.source}${s.sourceUrl ? ' (' + s.sourceUrl + ')' : ''}` : ''
+    await ctx.reply(`Сохранено: ${result.title}\n${result.path}\nТеги: ${tagsDisplay}${sourceDisplay}`)
   } catch (err: any) {
     console.error('Save error:', err)
     await ctx.reply(`Ошибка при сохранении: ${err.message}`)
@@ -487,6 +488,7 @@ async function doSaveWithFilename(ctx: MyContext, title: string, filename: strin
       title,
       tags: s.selectedTags,
       source: s.source || undefined,
+      sourceUrl: s.sourceUrl || undefined,
       originalUrl: s.originalUrl || undefined,
       videoYaDiskUrl: undefined,
       date,
@@ -500,7 +502,8 @@ async function doSaveWithFilename(ctx: MyContext, title: string, filename: strin
     await putFileTop(`${VAULT_PATH}${notePath}`, markdown)
 
     const tagsDisplay = s.selectedTags.length > 0 ? s.selectedTags.map(t => '#' + t).join(' ') : 'нет'
-    await ctx.reply(`Сохранено: ${title}\n${notePath}\nТеги: ${tagsDisplay}`)
+    const sourceDisplay = s.source ? `\nИсточник: ${s.source}${s.sourceUrl ? ' (' + s.sourceUrl + ')' : ''}` : ''
+    await ctx.reply(`Сохранено: ${title}\n${notePath}\nТеги: ${tagsDisplay}${sourceDisplay}`)
   } catch (err: any) {
     console.error('Save error:', err)
     await ctx.reply(`Ошибка при сохранении: ${err.message}`)

@@ -2,6 +2,7 @@ export interface NoteData {
   title: string
   tags: string[]
   source?: string
+  sourceUrl?: string
   originalUrl?: string
   videoYaDiskUrl?: string
   date: string
@@ -20,6 +21,7 @@ export function buildMarkdown(data: NoteData): string {
   }
 
   if (data.source) lines.push(`source: "${escapeYaml(data.source)}"`)
+  if (data.sourceUrl) lines.push(`source_url: "${escapeYaml(data.sourceUrl)}"`)
   if (data.originalUrl) lines.push(`video: "${escapeYaml(data.originalUrl)}"`)
   if (data.videoYaDiskUrl) lines.push(`video_yadisk: "${escapeYaml(data.videoYaDiskUrl)}"`)
 
@@ -29,6 +31,15 @@ export function buildMarkdown(data: NoteData): string {
 
   lines.push('---')
   lines.push('')
+
+  // Source line with link before title
+  if (data.source) {
+    const sourceText = data.sourceUrl
+      ? `[${data.source}](${data.sourceUrl})`
+      : data.source
+    lines.push(`> Источник: ${sourceText}`)
+    lines.push('')
+  }
 
   lines.push(`# ${data.title}`)
   lines.push('')

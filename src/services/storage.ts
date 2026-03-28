@@ -32,6 +32,7 @@ export async function saveEntry(
     text: string
     contentType: ContentType
     source: string
+    sourceUrl: string
     originalUrl: string
     videoYaDiskUrl: string
     hash: string
@@ -62,6 +63,7 @@ export async function saveEntry(
     title: data.title,
     tags: data.tags,
     source: data.source || undefined,
+    sourceUrl: data.sourceUrl || undefined,
     originalUrl: data.originalUrl || undefined,
     videoYaDiskUrl: data.videoYaDiskUrl || undefined,
     date,
