@@ -1,19 +1,21 @@
 import { Bot, Context, session } from 'grammy'
-import { BOT_TOKEN, OWNER_CHAT_ID } from './config.js'
-import { buildCategoryKeyboard, buildTitleKeyboard, buildDuplicateKeyboard } from './keyboards/hashtags.js'
-import { createPage, findDuplicate, type ContentType } from './services/notion.js'
+import { BOT_TOKEN, OWNER_CHAT_ID, CATEGORY_MAP, CATEGORY_TAGS, VAULT_PATH, type ContentType } from './config.js'
+import { buildCategoryKeyboard, buildSubcategoryKeyboard, buildTagKeyboard, buildTitleKeyboard, buildDuplicateKeyboard } from './keyboards/navigation.js'
+import { saveEntry, findDuplicate } from './services/storage.js'
 import { contentHash, urlNormalize } from './utils/content-hash.js'
-import { autoTitle, detectVideoUrl } from './utils/text-utils.js'
+import { autoTitle, detectVideoUrl, buildFilename } from './utils/text-utils.js'
 
 // Session state
 interface SessionData {
-  state: 'idle' | 'awaiting_category' | 'awaiting_custom_tag' | 'awaiting_title'
+  state: 'idle' | 'awaiting_category' | 'awaiting_subcategory' | 'awaiting_tags' | 'awaiting_custom_tags' | 'awaiting_title'
   contentType: ContentType
   text: string
   source: string
   imageFileIds: string[]
   originalUrl: string
-  selectedCategories: Set<string>
+  selectedFolder: string      // resolved vault path e.g. "/Бизнес/WB/"
+  selectedCategory: string    // category key e.g. "бизнес" (for tag lookup)
+  selectedTags: string[]      // tag list
   hash: string
 }
 
@@ -25,7 +27,9 @@ function defaultSession(): SessionData {
     source: '',
     imageFileIds: [],
     originalUrl: '',
-    selectedCategories: new Set(),
+    selectedFolder: '',
+    selectedCategory: '',
+    selectedTags: [],
     hash: '',
   }
 }
@@ -34,16 +38,25 @@ type MyContext = Context & { session: SessionData }
 
 const bot = new Bot<MyContext>(BOT_TOKEN)
 
+// Module-level photo buffer storage (do NOT store buffers in grammY session)
+const pendingPhotos = new Map<number, Buffer[]>()
+
 // Error handler
 bot.catch((err) => {
-  console.error('Bot error:', err.message || err)
+  console.error('Bot error:', err.error || err.message || err)
 })
 
-// Log all incoming updates (first middleware)
+// Log all incoming updates + catch errors in middleware
 bot.use(async (ctx, next) => {
   const keys = Object.keys(ctx.update).filter(k => k !== 'update_id')
   console.log('[IN] update=%d from=%d chat=%d keys=%s text=%s', ctx.update.update_id, ctx.from?.id, ctx.chat?.id, keys.join(','), ctx.message?.text?.slice(0, 80) || ctx.message?.caption?.slice(0, 80) || ctx.callbackQuery?.data || '-')
-  await next()
+  try {
+    await next()
+    console.log('[OK] update=%d processed', ctx.update.update_id)
+  } catch (err: any) {
+    console.error('[ERR] update=%d error=%s', ctx.update.update_id, err.message || err)
+    console.error(err.stack || err)
+  }
 })
 
 bot.use(session({ initial: defaultSession }))
@@ -60,13 +73,14 @@ bot.use(async (ctx, next) => {
 // /start command
 bot.command('start', async (ctx) => {
   await ctx.reply(
-    'Привет! Отправь мне текст, фото, видео-ссылку или перешли сообщение — я сохраню это в Notion.\n\n' +
+    'Привет! Отправь мне текст, фото, видео-ссылку или перешли сообщение — я сохраню это в Obsidian vault.\n\n' +
     '/cancel — отменить текущую операцию'
   )
 })
 
 // /cancel command
 bot.command('cancel', async (ctx) => {
+  pendingPhotos.delete(ctx.chat!.id)
   ctx.session = defaultSession()
   await ctx.reply('Отменено.')
 })
@@ -75,23 +89,19 @@ bot.command('cancel', async (ctx) => {
 async function processNewContent(ctx: MyContext, contentType: ContentType, text: string, source: string, imageFileIds: string[], originalUrl: string) {
   const hash = contentHash(text || originalUrl || imageFileIds.join(','))
 
-  // Check for duplicates
-  const dup = await findDuplicate(hash)
-  if (dup) {
-    ctx.session.hash = hash
-    ctx.session.contentType = contentType
-    ctx.session.text = text
-    ctx.session.source = source
-    ctx.session.imageFileIds = imageFileIds
-    ctx.session.originalUrl = originalUrl
-    await ctx.reply(
-      `⚠️ Похожая запись уже есть:\n«${dup.title}» от ${dup.date}\n\nСохранить как новую?`,
-      { reply_markup: buildDuplicateKeyboard() }
-    )
-    return
+  // Download photo bytes immediately (before categorization starts)
+  if (imageFileIds.length > 0) {
+    const buffers: Buffer[] = []
+    for (const fileId of imageFileIds) {
+      const file = await ctx.api.getFile(fileId)
+      const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`
+      const response = await fetch(fileUrl)
+      buffers.push(Buffer.from(await response.arrayBuffer()))
+    }
+    pendingPhotos.set(ctx.chat!.id, buffers)
   }
 
-  // Show category selection
+  // Set session state for category selection
   ctx.session.state = 'awaiting_category'
   ctx.session.contentType = contentType
   ctx.session.text = text
@@ -99,40 +109,47 @@ async function processNewContent(ctx: MyContext, contentType: ContentType, text:
   ctx.session.imageFileIds = imageFileIds
   ctx.session.originalUrl = originalUrl
   ctx.session.hash = hash
-  ctx.session.selectedCategories = new Set()
+  ctx.session.selectedFolder = ''
+  ctx.session.selectedCategory = ''
+  ctx.session.selectedTags = []
 
   const preview = text ? text.slice(0, 150) + (text.length > 150 ? '...' : '') : ''
   await ctx.reply(
-    `📋 Тип: ${contentType}\n${preview ? preview + '\n' : ''}\nВыберите категории:`,
-    { reply_markup: buildCategoryKeyboard(ctx.session.selectedCategories) }
+    `Тип: ${contentType}\n${preview ? preview + '\n' : ''}\nВыберите категорию:`,
+    { reply_markup: buildCategoryKeyboard() }
   )
 }
 
 // Text messages
 bot.on('message:text', async (ctx) => {
+  console.log('[TEXT] handler entered, state=%s, forward=%s', ctx.session.state, !!ctx.message.forward_origin)
   const s = ctx.session
 
   // If awaiting custom tag input
-  if (s.state === 'awaiting_custom_tag') {
-    const tag = ctx.message.text.replace(/^#/, '').trim()
-    if (tag) {
-      s.selectedCategories.add(tag)
+  if (s.state === 'awaiting_custom_tags') {
+    const input = ctx.message.text
+    const tags = input.split(',').map(t => t.replace(/^#/, '').trim()).filter(Boolean)
+    for (const tag of tags) {
+      if (!s.selectedTags.includes(tag)) {
+        s.selectedTags.push(tag)
+      }
     }
-    s.state = 'awaiting_category'
-    await ctx.reply('Выберите категории:', { reply_markup: buildCategoryKeyboard(s.selectedCategories) })
+    s.state = 'awaiting_tags'
+    await ctx.reply('Выберите теги:', { reply_markup: buildTagKeyboard(s.selectedCategory, s.selectedTags) })
     return
   }
 
   // If awaiting title
   if (s.state === 'awaiting_title') {
-    await saveToNotion(ctx, ctx.message.text.trim())
+    await doSave(ctx, ctx.message.text.trim())
     return
   }
 
   // New content
   if (s.state !== 'idle') {
-    await ctx.reply('Есть незавершённая операция. /cancel чтобы отменить.')
-    return
+    console.log('[WARN] state=%s, resetting to idle for new content', s.state)
+    pendingPhotos.delete(ctx.chat!.id)
+    ctx.session = defaultSession()
   }
 
   const text = ctx.message.text
@@ -156,9 +173,11 @@ bot.on('message:text', async (ctx) => {
 
 // Photo messages
 bot.on('message:photo', async (ctx) => {
+  // Auto-reset stale session (same as text handler)
   if (ctx.session.state !== 'idle') {
-    await ctx.reply('Есть незавершённая операция. /cancel чтобы отменить.')
-    return
+    console.log('[WARN] state=%s, resetting to idle for new photo', ctx.session.state)
+    pendingPhotos.delete(ctx.chat!.id)
+    ctx.session = defaultSession()
   }
 
   const photo = ctx.message.photo
@@ -178,112 +197,316 @@ bot.on('message:photo', async (ctx) => {
   await processNewContent(ctx, 'фото', caption, source, [largest.file_id], '')
 })
 
-// Callback queries for category selection
+// Document messages (forwarded files, videos from channels)
+bot.on(['message:document', 'message:video', 'message:animation', 'message:voice', 'message:audio'], async (ctx) => {
+  const msg = ctx.message as any
+  console.log('[DOC] received, doc=%s video=%s caption=%s', !!msg.document, !!msg.video, msg.caption?.slice(0, 50))
+  if (ctx.session.state !== 'idle') {
+    pendingPhotos.delete(ctx.chat!.id)
+    ctx.session = defaultSession()
+  }
+
+  const caption = msg.caption || ''
+  const text = caption || msg.document?.file_name || 'Документ'
+  let source = ''
+  const videoUrl = detectVideoUrl(text)
+
+  if (ctx.message.forward_origin) {
+    const origin = ctx.message.forward_origin
+    if (origin.type === 'channel') {
+      source = `Переслано из ${(origin as any).chat?.title || 'канала'}`
+    } else if (origin.type === 'user') {
+      source = `Переслано от ${(origin as any).sender_user?.first_name || 'пользователя'}`
+    } else {
+      source = 'Пересланное сообщение'
+    }
+  }
+
+  const contentType: ContentType = videoUrl ? 'видео' : 'пересланное'
+  await processNewContent(ctx, contentType, text, source, [], videoUrl ? urlNormalize(videoUrl) : '')
+})
+
+// Callback queries
 bot.on('callback_query:data', async (ctx) => {
   const data = ctx.callbackQuery.data
   const s = ctx.session
 
-  // Duplicate resolution
-  if (data === 'dup:new') {
-    s.state = 'awaiting_category'
-    s.selectedCategories = new Set()
-    await ctx.answerCallbackQuery()
-    await ctx.editMessageText('Выберите категории:', { reply_markup: buildCategoryKeyboard(s.selectedCategories) })
+  // Stale session guard for nav/tag callbacks
+  if ((data.startsWith('nav:') || data.startsWith('tag:')) && s.state === 'idle') {
+    await ctx.answerCallbackQuery('Сессия сброшена, отправьте контент заново')
     return
   }
-  if (data === 'dup:cancel') {
+
+  // --- NAV callbacks (category/subcategory selection) ---
+
+  if (data === 'nav:cancel') {
+    pendingPhotos.delete(ctx.chat!.id)
     ctx.session = defaultSession()
     await ctx.answerCallbackQuery('Отменено')
-    await ctx.editMessageText('❌ Отменено.')
+    await ctx.editMessageText('Отменено.')
     return
   }
 
-  // Category selection
-  if (data.startsWith('cat:')) {
-    const action = data.slice(4)
+  if (data === 'nav:inbox') {
+    // Inbox quick-save: no tags, no title prompt, auto-title, save immediately
+    s.selectedFolder = '/Inbox/'
+    s.selectedCategory = 'inbox'
+    s.selectedTags = []
+    await ctx.answerCallbackQuery()
+    const title = autoTitle(s.text || `${s.contentType} от ${new Date().toLocaleDateString('ru')}`)
+    await doSave(ctx, title)
+    return
+  }
 
-    if (action === 'cancel') {
-      ctx.session = defaultSession()
-      await ctx.answerCallbackQuery('Отменено')
-      await ctx.editMessageText('❌ Отменено.')
-      return
-    }
+  if (data.startsWith('nav:')) {
+    const payload = data.slice(4)
+    await ctx.answerCallbackQuery()
 
-    if (action === 'custom') {
-      s.state = 'awaiting_custom_tag'
-      await ctx.answerCallbackQuery()
-      await ctx.reply('Напишите хэштег (без #):')
-      return
-    }
+    // Handle subcategory callbacks: "catKey_root" or "catKey_subKey"
+    if (payload.includes('_')) {
+      const underscoreIdx = payload.indexOf('_')
+      const catKey = payload.slice(0, underscoreIdx)
+      const subPart = payload.slice(underscoreIdx + 1)
 
-    if (action === 'save') {
-      if (s.selectedCategories.size === 0) {
-        await ctx.answerCallbackQuery('Выберите хотя бы одну категорию')
-        return
+      if (subPart === 'root') {
+        // Save to category root folder
+        s.selectedFolder = CATEGORY_MAP[catKey]!.path
+        s.selectedCategory = catKey
+        s.state = 'awaiting_tags'
+        await ctx.editMessageText('Выберите теги:', { reply_markup: buildTagKeyboard(catKey, []) })
+      } else {
+        // Save to subcategory folder
+        const sub = CATEGORY_MAP[catKey]?.subs?.[subPart]
+        if (sub) {
+          s.selectedFolder = sub.path
+          s.selectedCategory = catKey
+          s.state = 'awaiting_tags'
+          await ctx.editMessageText('Выберите теги:', { reply_markup: buildTagKeyboard(catKey, []) })
+        }
       }
-      // Ask for title
-      s.state = 'awaiting_title'
-      const suggestedTitle = autoTitle(s.text || `${s.contentType} от ${new Date().toLocaleDateString('ru')}`)
-      await ctx.answerCallbackQuery()
-      await ctx.editMessageText(
-        `Категории: ${[...s.selectedCategories].map(c => '#' + c).join(' ')}\n\nНазвание? Напишите или нажмите «Пропустить»\n(Авто: «${suggestedTitle}»)`,
-        { reply_markup: buildTitleKeyboard() }
-      )
       return
     }
 
-    // Toggle category
-    if (s.selectedCategories.has(action)) {
-      s.selectedCategories.delete(action)
+    // Top-level category
+    const cat = CATEGORY_MAP[payload]
+    if (!cat) return
+
+    if (cat.subs) {
+      // Has subcategories: show subcategory keyboard
+      s.selectedCategory = payload
+      s.state = 'awaiting_subcategory'
+      await ctx.editMessageText(`${cat.label} — выберите подкатегорию:`, { reply_markup: buildSubcategoryKeyboard(payload) })
     } else {
-      s.selectedCategories.add(action)
+      // No subcategories (Новости, Идеи): go straight to tags
+      s.selectedFolder = cat.path
+      s.selectedCategory = payload
+      s.state = 'awaiting_tags'
+      await ctx.editMessageText('Выберите теги:', { reply_markup: buildTagKeyboard(payload, []) })
+    }
+    return
+  }
+
+  // --- TAG callbacks ---
+
+  if (data === 'tag:cancel') {
+    pendingPhotos.delete(ctx.chat!.id)
+    ctx.session = defaultSession()
+    await ctx.answerCallbackQuery('Отменено')
+    await ctx.editMessageText('Отменено.')
+    return
+  }
+
+  if (data === 'tag:none') {
+    s.selectedTags = []
+    s.state = 'awaiting_title'
+    await ctx.answerCallbackQuery()
+    const suggestedTitle = autoTitle(s.text || `${s.contentType} от ${new Date().toLocaleDateString('ru')}`)
+    await ctx.editMessageText(
+      `Теги: нет\n\nНазвание? Напишите или нажмите "Пропустить"\n(Авто: "${suggestedTitle}")`,
+      { reply_markup: buildTitleKeyboard() }
+    )
+    return
+  }
+
+  if (data === 'tag:done') {
+    s.state = 'awaiting_title'
+    await ctx.answerCallbackQuery()
+    const tagsDisplay = s.selectedTags.length > 0 ? s.selectedTags.map(t => '#' + t).join(' ') : 'нет'
+    const suggestedTitle = autoTitle(s.text || `${s.contentType} от ${new Date().toLocaleDateString('ru')}`)
+    await ctx.editMessageText(
+      `Теги: ${tagsDisplay}\n\nНазвание? Напишите или нажмите "Пропустить"\n(Авто: "${suggestedTitle}")`,
+      { reply_markup: buildTitleKeyboard() }
+    )
+    return
+  }
+
+  if (data === 'tag:custom') {
+    s.state = 'awaiting_custom_tags'
+    await ctx.answerCallbackQuery()
+    await ctx.reply('Напишите теги через запятую:')
+    return
+  }
+
+  if (data.startsWith('tag:')) {
+    const tagName = data.slice(4)
+    // Toggle tag
+    const idx = s.selectedTags.indexOf(tagName)
+    if (idx >= 0) {
+      s.selectedTags.splice(idx, 1)
+    } else {
+      s.selectedTags.push(tagName)
     }
     await ctx.answerCallbackQuery()
-    await ctx.editMessageReplyMarkup({ reply_markup: buildCategoryKeyboard(s.selectedCategories) })
+    await ctx.editMessageReplyMarkup({ reply_markup: buildTagKeyboard(s.selectedCategory, s.selectedTags) })
     return
   }
 
-  // Title skip
+  // --- TITLE callbacks ---
+
   if (data === 'title:skip') {
     await ctx.answerCallbackQuery()
     const title = autoTitle(s.text || `${s.contentType} от ${new Date().toLocaleDateString('ru')}`)
-    await saveToNotion(ctx, title)
+    await doSave(ctx, title)
+    return
+  }
+
+  // --- DUP callbacks ---
+
+  if (data === 'dup:new') {
+    await ctx.answerCallbackQuery()
+    // Append suffix to avoid duplicate filename
+    const date = new Date().toISOString().slice(0, 10)
+    const baseTitle = (ctx.session as any)._dupTitle || s.text || 'запись'
+    let suffix = 2
+    let filename = buildFilename(baseTitle + `_${suffix}`, date)
+    while (await findDuplicate(s.selectedFolder, filename)) {
+      suffix++
+      filename = buildFilename(baseTitle + `_${suffix}`, date)
+    }
+    await doSaveWithFilename(ctx, baseTitle, filename)
+    return
+  }
+
+  if (data === 'dup:cancel') {
+    pendingPhotos.delete(ctx.chat!.id)
+    ctx.session = defaultSession()
+    await ctx.answerCallbackQuery('Отменено')
+    await ctx.editMessageText('Отменено.')
     return
   }
 })
 
-async function saveToNotion(ctx: MyContext, title: string) {
+// Fallback
+bot.on('message', async (ctx) => {
+  console.log('[FALLBACK] unhandled message type, keys=%s', Object.keys(ctx.message).join(','))
+  await ctx.reply('Отправь текст, фото или перешли сообщение.')
+})
+
+/**
+ * Save entry to vault. Checks for duplicates first.
+ */
+async function doSave(ctx: MyContext, title: string) {
   const s = ctx.session
-  await ctx.reply('⏳ Сохраняю...')
+  await ctx.reply('Сохраняю...')
 
   try {
-    // Download photo and get URL (for Notion external image)
-    const imageUrls: string[] = []
-    for (const fileId of s.imageFileIds) {
-      const file = await ctx.api.getFile(fileId)
-      if (file.file_path) {
-        imageUrls.push(`https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`)
-      }
+    const date = new Date().toISOString().slice(0, 10)
+    const filename = buildFilename(title, date)
+
+    // Check for duplicate
+    const isDup = await findDuplicate(s.selectedFolder, filename)
+    if (isDup) {
+      // Store title for dup:new handler
+      ;(s as any)._dupTitle = title
+      await ctx.reply(
+        `Файл "${filename}" уже существует.\n\nСохранить как новую запись или отменить?`,
+        { reply_markup: buildDuplicateKeyboard() }
+      )
+      return
     }
 
-    const result = await createPage({
-      title,
-      categories: [...s.selectedCategories],
-      contentType: s.contentType,
-      source: s.source || undefined,
-      text: s.text || undefined,
-      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
-      originalUrl: s.originalUrl || undefined,
-      contentHash: s.hash || undefined,
-    })
+    // Prepare photo buffers
+    const chatId = ctx.chat!.id
+    const buffers = pendingPhotos.get(chatId) || []
+    const photoBuffers = buffers.map((buffer, i) => ({
+      name: `img_${Date.now()}_${contentHash(buffer.toString('base64')).slice(0, 8)}_${i}.jpg`,
+      buffer,
+    }))
 
-    const tags = [...s.selectedCategories].map(c => '#' + c).join(' ')
-    await ctx.reply(`✅ Сохранено: «${title}»\n${tags}\n${result.url}`)
+    const result = await saveEntry({
+      title,
+      text: s.text,
+      contentType: s.contentType,
+      source: s.source,
+      originalUrl: s.originalUrl,
+      videoYaDiskUrl: '',
+      hash: s.hash,
+      folderPath: s.selectedFolder,
+      tags: s.selectedTags,
+    }, photoBuffers)
+
+    const tagsDisplay = s.selectedTags.length > 0 ? s.selectedTags.map(t => '#' + t).join(' ') : 'нет'
+    await ctx.reply(`Сохранено: ${result.title}\n${result.path}\nТеги: ${tagsDisplay}`)
   } catch (err: any) {
     console.error('Save error:', err)
-    await ctx.reply(`❌ Ошибка при сохранении: ${err.message}`)
+    await ctx.reply(`Ошибка при сохранении: ${err.message}`)
   }
 
+  pendingPhotos.delete(ctx.chat!.id)
+  ctx.session = defaultSession()
+}
+
+/**
+ * Save with a specific filename (used for duplicate resolution with suffix).
+ */
+async function doSaveWithFilename(ctx: MyContext, title: string, filename: string) {
+  const s = ctx.session
+
+  try {
+    const chatId = ctx.chat!.id
+    const buffers = pendingPhotos.get(chatId) || []
+    const photoBuffers = buffers.map((buffer, i) => ({
+      name: `img_${Date.now()}_${contentHash(buffer.toString('base64')).slice(0, 8)}_${i}.jpg`,
+      buffer,
+    }))
+
+    const date = new Date().toISOString().slice(0, 10)
+    const notePath = `${s.selectedFolder}${filename}`
+
+    // Upload photos
+    const attachments: string[] = []
+    for (const photo of photoBuffers) {
+      const { putFile } = await import('./services/webdav.js')
+      await putFile(`${VAULT_PATH}/attachments/${photo.name}`, new Uint8Array(photo.buffer), 'image/jpeg')
+      attachments.push(`attachments/${photo.name}`)
+    }
+
+    // Build and upload markdown
+    const { buildMarkdown } = await import('./services/markdown.js')
+    const markdown = buildMarkdown({
+      title,
+      tags: s.selectedTags,
+      source: s.source || undefined,
+      originalUrl: s.originalUrl || undefined,
+      videoYaDiskUrl: undefined,
+      date,
+      type: s.contentType,
+      contentHash: s.hash,
+      text: s.text || undefined,
+      attachments,
+    })
+
+    const { putFile: putFileTop } = await import('./services/webdav.js')
+    await putFileTop(`${VAULT_PATH}${notePath}`, markdown)
+
+    const tagsDisplay = s.selectedTags.length > 0 ? s.selectedTags.map(t => '#' + t).join(' ') : 'нет'
+    await ctx.reply(`Сохранено: ${title}\n${notePath}\nТеги: ${tagsDisplay}`)
+  } catch (err: any) {
+    console.error('Save error:', err)
+    await ctx.reply(`Ошибка при сохранении: ${err.message}`)
+  }
+
+  pendingPhotos.delete(ctx.chat!.id)
   ctx.session = defaultSession()
 }
 
