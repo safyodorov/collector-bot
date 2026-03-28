@@ -39,7 +39,11 @@ Plans:
   5. Теги предлагаются после выбора папки и записываются в frontmatter
   6. Sending the same content twice triggers the duplicate detection UI with options to save or cancel
   7. Generated filenames are sanitized and contain date + title (e.g. 2026-03-28_Шарлотка.md)
-**Plans**: TBD
+**Plans:** 3 plans in 2 waves
+Plans:
+- [ ] 02-01-PLAN.md -- Pure functions: markdown generator, filename sanitizer, category/tag config
+- [ ] 02-02-PLAN.md -- Two-level navigation keyboards (category, subcategory, tags)
+- [ ] 02-03-PLAN.md -- Storage orchestrator + bot.ts rewrite (state machine, photo pipeline, dedup)
 
 ### Phase 3: Cutover & Deploy
 **Goal**: Bot runs on VPS with WebDAV only, no Notion traces remain
@@ -50,7 +54,11 @@ Plans:
   2. @notionhq/client is absent from package.json and node_modules
   3. Bot UI texts do not mention "Notion" anywhere
   4. Bot starts via PM2 on VPS and processes a test message end-to-end without errors
-**Plans**: TBD
+**Plans:** 3 plans in 2 waves
+Plans:
+- [ ] 02-01-PLAN.md -- Pure functions: markdown generator, filename sanitizer, category/tag config
+- [ ] 02-02-PLAN.md -- Two-level navigation keyboards (category, subcategory, tags)
+- [ ] 02-03-PLAN.md -- Storage orchestrator + bot.ts rewrite (state machine, photo pipeline, dedup)
 
 ## Progress
 
