@@ -54,16 +54,15 @@ Plans:
   2. @notionhq/client is absent from package.json and node_modules
   3. Bot UI texts do not mention "Notion" anywhere
   4. Bot starts via PM2 on VPS and processes a test message end-to-end without errors
-**Plans:** 3 plans in 2 waves
+**Plans:** 2 plans in 2 waves
 Plans:
-- [x] 02-01-PLAN.md -- Pure functions: markdown generator, filename sanitizer, category/tag config
-- [x] 02-02-PLAN.md -- Two-level navigation keyboards (category, subcategory, tags)
-- [ ] 02-03-PLAN.md -- Storage orchestrator + bot.ts rewrite (state machine, photo pipeline, dedup)
+- [ ] 03-01-PLAN.md -- Remove Notion dead code, config vars, and @notionhq/client dependency (CONF-01, CONF-02, CONF-03, CONF-04)
+- [ ] 03-02-PLAN.md -- Deploy to VPS, verify PM2 startup and end-to-end test (CONF-05)
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. WebDAV Foundation | 2/2 | Complete   | 2026-03-28 |
-| 2. Content Pipeline | 0/0 | Not started | - |
-| 3. Cutover & Deploy | 0/0 | Not started | - |
+| 2. Content Pipeline | 3/3 | Complete | 2026-03-28 |
+| 3. Cutover & Deploy | 0/2 | Not started | - |
