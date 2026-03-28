@@ -13,7 +13,6 @@ function required(name: string): string {
 
 export const BOT_TOKEN = required('TELEGRAM_BOT_TOKEN')
 export const YANDEX_DISK_TOKEN = required('YANDEX_DISK_TOKEN')
-export const WEBDAV_URL = 'https://webdav.yandex.ru'
 export const VAULT_PATH = process.env.VAULT_PATH || '/vault'
 
 export const MAX_VIDEO_SIZE_MB = parseInt(process.env.MAX_VIDEO_SIZE_MB || '500', 10)
