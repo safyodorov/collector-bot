@@ -43,6 +43,18 @@ const bot = new Bot<MyContext>(BOT_TOKEN)
 // Module-level photo buffer storage (do NOT store buffers in grammY session)
 const pendingPhotos = new Map<number, Buffer[]>()
 
+// Media group buffering: collect all photos from a media group before processing
+interface MediaGroupBuffer {
+  fileIds: string[]
+  caption: string
+  source: string
+  sourceUrl: string
+  chatId: number
+  ctx: MyContext   // keep last ctx for reply
+  timer: ReturnType<typeof setTimeout>
+}
+const mediaGroupBuffers = new Map<string, MediaGroupBuffer>()
+
 // Error handler
 bot.catch((err) => {
   console.error('Bot error:', err.error || err.message || err)
@@ -190,22 +202,61 @@ bot.on('message:text', async (ctx) => {
   }
 })
 
-// Photo messages
+// Photo messages (with media group buffering)
 bot.on('message:photo', async (ctx) => {
-  // Auto-reset stale session (same as text handler)
-  if (ctx.session.state !== 'idle') {
-    console.log('[WARN] state=%s, resetting to idle for new photo', ctx.session.state)
-    pendingPhotos.delete(ctx.chat!.id)
-    ctx.session = defaultSession()
-  }
-
+  const mgId = ctx.message.media_group_id
   const photo = ctx.message.photo
   const largest = photo[photo.length - 1]!
   const caption = ctx.message.caption || ''
   const { name, url } = extractSource(ctx.message.forward_origin)
 
-  await processNewContent(ctx, 'фото', caption, name, url, [largest.file_id], '')
+  // Single photo (no media group) — process immediately
+  if (!mgId) {
+    if (ctx.session.state !== 'idle') {
+      console.log('[WARN] state=%s, resetting to idle for new photo', ctx.session.state)
+      pendingPhotos.delete(ctx.chat!.id)
+      ctx.session = defaultSession()
+    }
+    await processNewContent(ctx, 'фото', caption, name, url, [largest.file_id], '')
+    return
+  }
+
+  // Media group — buffer photos and process after 800ms of silence
+  const existing = mediaGroupBuffers.get(mgId)
+  if (existing) {
+    // Add photo to existing buffer
+    existing.fileIds.push(largest.file_id)
+    if (caption) existing.caption = caption  // caption only comes with first photo
+    existing.ctx = ctx  // update ctx to latest
+    clearTimeout(existing.timer)
+    existing.timer = setTimeout(() => flushMediaGroup(mgId), 800)
+  } else {
+    // Reset session for new content
+    if (ctx.session.state !== 'idle') {
+      console.log('[WARN] state=%s, resetting to idle for media group', ctx.session.state)
+      pendingPhotos.delete(ctx.chat!.id)
+      ctx.session = defaultSession()
+    }
+    const buf: MediaGroupBuffer = {
+      fileIds: [largest.file_id],
+      caption,
+      source: name,
+      sourceUrl: url,
+      chatId: ctx.chat!.id,
+      ctx,
+      timer: setTimeout(() => flushMediaGroup(mgId), 800),
+    }
+    mediaGroupBuffers.set(mgId, buf)
+  }
 })
+
+async function flushMediaGroup(mgId: string) {
+  const buf = mediaGroupBuffers.get(mgId)
+  if (!buf) return
+  mediaGroupBuffers.delete(mgId)
+  console.log('[MEDIA_GROUP] %s: %d photos, caption=%s', mgId, buf.fileIds.length, buf.caption?.slice(0, 50) || '-')
+  await processNewContent(buf.ctx, 'фото', buf.caption, buf.source, buf.sourceUrl, buf.fileIds, '')
+}
 
 // Document messages (forwarded files, videos from channels)
 bot.on(['message:document', 'message:video', 'message:animation', 'message:voice', 'message:audio'], async (ctx) => {
