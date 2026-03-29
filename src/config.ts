@@ -1,9 +1,12 @@
 import { config } from 'dotenv'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { mkdirSync } from 'node:fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 config({ path: resolve(__dirname, '..', '.env') })
+
+export const PROJECT_ROOT = resolve(__dirname, '..')
 
 function required(name: string): string {
   const val = process.env[name]
@@ -104,6 +107,22 @@ export const CATEGORY_MAP: Record<string, CategoryDef> = {
   идеи: { label: 'Идеи', path: '/Идеи/' },
   inbox: { label: 'Inbox', path: '/Inbox/' },
 }
+
+// Media pipeline
+export const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY ?? ''
+export const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? ''
+export const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL ?? 'https://litellm.tokengate.ru/v1'
+export const SUMMARY_MODEL = process.env.SUMMARY_MODEL ?? 'openai/gpt-5.2'
+export const MAX_DURATION_SECONDS = Number(process.env.MAX_DURATION_SECONDS) || 18000
+
+// Obsidian / Yandex.Disk
+export const OBSIDIAN_VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH ?? '/Obsidian/Media'
+export const YANDEX_WEBDAV_LOGIN = process.env.YANDEX_WEBDAV_LOGIN ?? ''
+export const YANDEX_WEBDAV_PASSWORD = process.env.YANDEX_WEBDAV_PASSWORD ?? ''
+
+// Temp directory for media pipeline
+export const TEMP_DIR = resolve(PROJECT_ROOT, 'tmp')
+mkdirSync(TEMP_DIR, { recursive: true })
 
 export const CATEGORY_TAGS: Record<string, string[]> = {
   бизнес: ['аналитика', 'задача', 'идея', 'важное', 'финансы', 'поставщики', 'китай', 'логистика'],
