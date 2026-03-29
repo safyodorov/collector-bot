@@ -1,5 +1,4 @@
-import { DeepgramClient } from '@deepgram/sdk'
-import { createReadStream } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { DEEPGRAM_API_KEY } from '../config.js'
 
 // --- Types ---
@@ -10,7 +9,26 @@ export interface TranscriptionResult {
   language: string          // Detected language code
 }
 
-// --- Transcription ---
+interface DeepgramParagraph {
+  speaker?: number
+  sentences?: Array<{ start?: number; text?: string }>
+}
+
+interface DeepgramResponse {
+  results: {
+    channels: Array<{
+      detected_language?: string
+      alternatives?: Array<{
+        paragraphs?: {
+          transcript?: string
+          paragraphs?: DeepgramParagraph[]
+        }
+      }>
+    }>
+  }
+}
+
+// --- Transcription via REST API (matches Python reference) ---
 
 export async function transcribeAudio(
   filePath: string,
@@ -20,52 +38,45 @@ export async function transcribeAudio(
     throw new Error('DEEPGRAM_API_KEY is not set. Check your .env file.')
   }
 
-  const client = new DeepgramClient({ apiKey: DEEPGRAM_API_KEY })
-
-  const requestOptions: Record<string, unknown> = {
+  const params = new URLSearchParams({
     model: 'nova-3',
-    smart_format: true,
-    paragraphs: true,
-    diarize: true,
-  }
+    smart_format: 'true',
+    paragraphs: 'true',
+    diarize: 'true',
+  })
 
   if (language) {
-    requestOptions.language = language
+    params.set('language', language)
   } else {
-    requestOptions.detect_language = true
+    params.set('detect_language', 'true')
   }
 
-  console.log(`Starting transcription: ${filePath} (language=${language ?? 'auto'})`)
+  const url = `https://api.deepgram.com/v1/listen?${params}`
+  const audioData = readFileSync(filePath)
+
+  console.log(`[TRANSCRIBER] Starting: ${filePath} (language=${language ?? 'auto'})`)
 
   let lastErr: unknown
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const stream = createReadStream(filePath)
-      const response = await client.listen.v1.media.transcribeFile(
-        stream,
-        requestOptions as Parameters<typeof client.listen.v1.media.transcribeFile>[1]
-      )
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+          'Content-Type': 'audio/mpeg',
+        },
+        body: audioData,
+        signal: AbortSignal.timeout(1800_000), // 30 min timeout
+      })
 
-      // Response shape: { metadata, results: { channels: [...] } }
-      // Access with type assertions since SDK types use optional fields
-      const res = response as unknown as {
-        results: {
-          channels: Array<{
-            detected_language?: string
-            alternatives?: Array<{
-              paragraphs?: {
-                paragraphs?: Array<{
-                  speaker?: number
-                  sentences?: Array<{ start?: number; text?: string }>
-                }>
-              }
-            }>
-          }>
-        }
+      if (!resp.ok) {
+        const body = await resp.text()
+        throw new Error(`Deepgram HTTP ${resp.status}: ${body}`)
       }
 
-      const channel = res.results.channels[0]
+      const data = await resp.json() as DeepgramResponse
+      const channel = data.results.channels[0]
       const detectedLang = channel.detected_language ?? language ?? 'unknown'
       const paragraphs = channel.alternatives?.[0]?.paragraphs?.paragraphs ?? []
 
@@ -104,7 +115,6 @@ export async function transcribeAudio(
           cleanLines.push(sentence.text ?? '')
         }
 
-        // Blank line between paragraphs
         timestampedLines.push('')
         cleanLines.push('')
       }
@@ -112,13 +122,13 @@ export async function transcribeAudio(
       const textWithTimecodes = timestampedLines.join('\n').trim()
       const text = cleanLines.join('\n').trim()
 
-      console.log(`Transcription complete. Detected language: ${detectedLang}`)
+      console.log(`[TRANSCRIBER] Complete. Language: ${detectedLang}`)
 
       return { text, textWithTimecodes, language: detectedLang }
     } catch (err) {
       lastErr = err
       if (attempt === 0) {
-        console.warn(`Deepgram attempt 1 failed (${err}), retrying...`)
+        console.warn(`[TRANSCRIBER] Attempt 1 failed (${err}), retrying...`)
       }
     }
   }
