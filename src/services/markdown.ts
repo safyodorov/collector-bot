@@ -44,13 +44,14 @@ export function buildMarkdown(data: NoteData): string {
   lines.push(`# ${data.title}`)
   lines.push('')
 
+  for (const att of data.attachments) {
+    lines.push(`![](${att})`)
+  }
+  if (data.attachments.length > 0) lines.push('')
+
   if (data.text) {
     lines.push(data.text)
     lines.push('')
-  }
-
-  for (const att of data.attachments) {
-    lines.push(`![](${att})`)
   }
 
   return lines.join('\n')
