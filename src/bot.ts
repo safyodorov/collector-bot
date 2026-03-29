@@ -334,11 +334,78 @@ const EXTRACTABLE_MIMES: Record<string, string> = {
 }
 
 // Document messages (forwarded files, videos from channels)
+// Video media group buffer — groups multiple videos from one forward into a single note
+interface VideoGroupBuffer {
+  fileIds: string[]
+  caption: string
+  source: string
+  sourceUrl: string
+  chatId: number
+  ctx: MyContext
+  timer: ReturnType<typeof setTimeout>
+}
+const videoGroupBuffers = new Map<string, VideoGroupBuffer>()
+
+async function flushVideoGroup(mgId: string) {
+  const buf = videoGroupBuffers.get(mgId)
+  if (!buf) return
+  videoGroupBuffers.delete(mgId)
+  console.log('[VIDEO_GROUP] %s: %d videos, caption=%s', mgId, buf.fileIds.length, buf.caption?.slice(0, 50) || '-')
+  // Save all videos as attachments, create one note
+  const buffers: Buffer[] = []
+  for (const fileId of buf.fileIds) {
+    try {
+      const file = await buf.ctx.api.getFile(fileId)
+      const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`
+      const response = await fetch(fileUrl)
+      buffers.push(Buffer.from(await response.arrayBuffer()))
+    } catch (err) {
+      console.error('[VIDEO_GROUP] Failed to download video:', err)
+    }
+  }
+  // Store video buffers as pending "photos" (reuse same mechanism)
+  if (buffers.length > 0) {
+    pendingPhotos.set(buf.chatId, buffers)
+  }
+  await processNewContent(buf.ctx, 'видео', buf.caption, buf.source, buf.sourceUrl, [], '')
+}
+
 bot.on(['message:document', 'message:video', 'message:animation', 'message:voice', 'message:audio'], async (ctx) => {
   const msg = ctx.message as any
   const mime = msg.document?.mime_type || ''
   const docExt = EXTRACTABLE_MIMES[mime]
   console.log('[DOC] received, doc=%s video=%s mime=%s caption=%s', !!msg.document, !!msg.video, mime, msg.caption?.slice(0, 50))
+
+  // Video media group buffering — combine multiple videos into one note
+  const mgId = msg.media_group_id
+  if (mgId && msg.video) {
+    const caption = msg.caption || ''
+    const { name, url } = extractSource(ctx.message.forward_origin)
+    const existing = videoGroupBuffers.get(mgId)
+    if (existing) {
+      existing.fileIds.push(msg.video.file_id)
+      if (caption) existing.caption = caption
+      existing.ctx = ctx
+      clearTimeout(existing.timer)
+      existing.timer = setTimeout(() => flushVideoGroup(mgId), 800)
+    } else {
+      if (ctx.session.state !== 'idle') {
+        pendingPhotos.delete(ctx.chat!.id)
+        pendingPdfs.delete(ctx.chat!.id)
+        ctx.session = defaultSession()
+      }
+      videoGroupBuffers.set(mgId, {
+        fileIds: [msg.video.file_id],
+        caption,
+        source: name,
+        sourceUrl: url,
+        chatId: ctx.chat!.id,
+        ctx,
+        timer: setTimeout(() => flushVideoGroup(mgId), 800),
+      })
+    }
+    return
+  }
 
   if (ctx.session.state !== 'idle') {
     pendingPhotos.delete(ctx.chat!.id)
