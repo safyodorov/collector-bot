@@ -64,7 +64,7 @@ const mediaGroupBuffers = new Map<string, MediaGroupBuffer>()
 // Media pipeline: store URLs by short ID to avoid Telegram's 64-byte callback_data limit
 const pendingMedia = new Map<string, string>()
 // Store running pipeline promises by chatId — resolved when pipeline finishes
-const runningPipelines = new Map<number, { promise: Promise<PipelineResult>; statusMsgId?: number; saveVideo: boolean }>()
+const runningPipelines = new Map<number, { promise: Promise<PipelineResult>; statusMsgId?: number; saveTranscript: boolean }>()
 
 async function handleMediaUrl(ctx: MyContext, url: string, chatId: number): Promise<void> {
   try {
@@ -78,7 +78,7 @@ async function handleMediaUrl(ctx: MyContext, url: string, chatId: number): Prom
     setTimeout(() => pendingMedia.delete(id), 30 * 60 * 1000)
 
     const keyboard = new InlineKeyboard()
-      .text('Сохранить видео', `media:process:${id}`)
+      .text('Саммари + транскрипт', `media:full:${id}`)
       .row()
       .text('Только саммари', `media:summary:${id}`)
       .row()
@@ -413,7 +413,7 @@ bot.on('callback_query:data', async (ctx) => {
   // --- MEDIA pipeline callbacks ---
   if (data.startsWith('media:')) {
     const parts = data.split(':')
-    const action = parts[1]  // 'process', 'summary', or 'skip'
+    const action = parts[1]  // 'full', 'summary', or 'skip'
     const id = parts[2]      // short ID from pendingMedia map
 
     await ctx.answerCallbackQuery()
@@ -432,7 +432,7 @@ bot.on('callback_query:data', async (ctx) => {
       return
     }
 
-    const saveVideo = action === 'process'
+    const saveTranscript = action === 'full'
     const chatId = ctx.chat!.id
 
     // Update status message in the original message
@@ -447,7 +447,7 @@ bot.on('callback_query:data', async (ctx) => {
 
     // Start pipeline in background
     const pipelinePromise = processMediaUrl(url, editStatus)
-    runningPipelines.set(chatId, { promise: pipelinePromise, statusMsgId, saveVideo })
+    runningPipelines.set(chatId, { promise: pipelinePromise, statusMsgId, saveTranscript })
 
     // Show category selection immediately (while pipeline runs in background)
     await processNewContent(ctx, 'видео', `Видео: ${url}`, '', '', [], url)
@@ -655,30 +655,29 @@ async function doSave(ctx: MyContext, title: string) {
       const date = new Date().toISOString().slice(0, 10)
       const transcriptFilename = buildFilename(finalTitle, date) .replace('.md', '_transcript.md')
 
-      // Save transcript file to Yandex.Disk
-      const { writeFileSync: wfs, mkdirSync: mds } = await import('node:fs')
-      const { resolve } = await import('node:path')
-      const tmpDir = '/tmp/collector-media'
-      mds(tmpDir, { recursive: true })
-      const transcriptTmpPath = resolve(tmpDir, transcriptFilename)
-      wfs(transcriptTmpPath, mediaResult.textWithTimecodes || '', 'utf-8')
-
-      // Upload transcript to attachments
-      try {
-        const { putFile, ensureDir } = await import('./services/webdav.js')
-        await ensureDir('/attachments/')
-        const transcriptBuf = Buffer.from(mediaResult.textWithTimecodes || '', 'utf-8')
-        await putFile(`/attachments/${transcriptFilename}`, transcriptBuf)
-        console.log(`[MEDIA] Transcript uploaded: /attachments/${transcriptFilename}`)
-      } catch (err) {
-        console.error('[MEDIA] Transcript upload failed:', err)
+      // Upload transcript to attachments (only if user chose "full")
+      let transcriptSaved = false
+      if (pipeline.saveTranscript && mediaResult.textWithTimecodes) {
+        try {
+          const { putFile, ensureDir } = await import('./services/webdav.js')
+          await ensureDir('/attachments/')
+          const transcriptBuf = Buffer.from(mediaResult.textWithTimecodes, 'utf-8')
+          await putFile(`/attachments/${transcriptFilename}`, transcriptBuf)
+          console.log(`[MEDIA] Transcript uploaded: /attachments/${transcriptFilename}`)
+          transcriptSaved = true
+        } catch (err) {
+          console.error('[MEDIA] Transcript upload failed:', err)
+        }
       }
 
-      // Clean up temp
-      try { (await import('node:fs')).unlinkSync(transcriptTmpPath) } catch {}
-
-      // Compose note text: transcript link first, then summary
-      const noteText = `> 🎬 Транскрипт: ![[${transcriptFilename}]]\n> Источник: ${s.originalUrl}\n> Длительность: ${formatDuration(mediaResult.duration)} | Язык: ${mediaResult.language}\n\n${mediaResult.summary}`
+      // Compose note text
+      const headerLines = []
+      if (transcriptSaved) {
+        headerLines.push(`> 🎬 Транскрипт: ![[${transcriptFilename}]]`)
+      }
+      headerLines.push(`> Источник: ${s.originalUrl}`)
+      headerLines.push(`> Длительность: ${formatDuration(mediaResult.duration)} | Язык: ${mediaResult.language}`)
+      const noteText = `${headerLines.join('\n')}\n\n${mediaResult.summary}`
 
       const result = await saveEntry({
         title: finalTitle,

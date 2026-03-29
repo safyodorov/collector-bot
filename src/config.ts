@@ -108,7 +108,6 @@ export const CATEGORY_MAP: Record<string, CategoryDef> = {
     path: '/Кино/',
     subs: {
       посмотреть: { label: 'Посмотреть', path: '/Кино/Посмотреть/' },
-      прочее: { label: 'Прочее', path: '/Кино/Прочее/' },
     },
   },
   новости: { label: 'Новости', path: '/Новости/' },
