@@ -216,6 +216,19 @@ bot.on('message:text', async (ctx) => {
     return
   }
 
+  // If awaiting tags and user types text — treat as custom tag input
+  if (s.state === 'awaiting_tags') {
+    const input = ctx.message.text
+    const tags = input.split(',').map(t => t.replace(/^#/, '').trim()).filter(Boolean)
+    for (const tag of tags) {
+      if (!s.selectedTags.includes(tag)) {
+        s.selectedTags.push(tag)
+      }
+    }
+    await ctx.reply('Выберите теги:', { reply_markup: buildTagKeyboard(s.selectedCategory, s.selectedTags) })
+    return
+  }
+
   // If awaiting title
   if (s.state === 'awaiting_title') {
     await doSave(ctx, ctx.message.text.trim())
