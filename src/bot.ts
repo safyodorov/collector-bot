@@ -677,8 +677,8 @@ async function doSave(ctx: MyContext, title: string) {
       // Clean up temp
       try { (await import('node:fs')).unlinkSync(transcriptTmpPath) } catch {}
 
-      // Compose note text with summary + transcript link
-      const noteText = `${mediaResult.summary}\n\n## Транскрипт\n\n![[${transcriptFilename}]]`
+      // Compose note text: transcript link first, then summary
+      const noteText = `> 🎬 Транскрипт: ![[${transcriptFilename}]]\n> Источник: ${s.originalUrl}\n> Длительность: ${formatDuration(mediaResult.duration)} | Язык: ${mediaResult.language}\n\n${mediaResult.summary}`
 
       const result = await saveEntry({
         title: finalTitle,
