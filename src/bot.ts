@@ -261,10 +261,24 @@ async function flushMediaGroup(mgId: string) {
   await processNewContent(buf.ctx, 'фото', buf.caption, buf.source, buf.sourceUrl, buf.fileIds, '')
 }
 
+// Supported document MIME types for text extraction
+const EXTRACTABLE_MIMES: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/msword': '.doc',
+  'text/plain': '.txt',
+  'text/csv': '.csv',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/vnd.ms-excel': '.xls',
+}
+
 // Document messages (forwarded files, videos from channels)
 bot.on(['message:document', 'message:video', 'message:animation', 'message:voice', 'message:audio'], async (ctx) => {
   const msg = ctx.message as any
-  console.log('[DOC] received, doc=%s video=%s mime=%s caption=%s', !!msg.document, !!msg.video, msg.document?.mime_type, msg.caption?.slice(0, 50))
+  const mime = msg.document?.mime_type || ''
+  const docExt = EXTRACTABLE_MIMES[mime]
+  console.log('[DOC] received, doc=%s video=%s mime=%s caption=%s', !!msg.document, !!msg.video, mime, msg.caption?.slice(0, 50))
+
   if (ctx.session.state !== 'idle') {
     pendingPhotos.delete(ctx.chat!.id)
     pendingPdfs.delete(ctx.chat!.id)
@@ -274,43 +288,44 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
   const caption = msg.caption || ''
   const { name, url } = extractSource(ctx.message.forward_origin)
 
-  // PDF handling: download, extract text, save buffer
-  if (msg.document?.mime_type === 'application/pdf') {
-    const pdfName = msg.document.file_name || 'document.pdf'
-    console.log('[PDF] downloading %s (%d bytes)', pdfName, msg.document.file_size)
+  // Extractable document: download, extract text to markdown, save original
+  if (msg.document && docExt) {
+    const docName = msg.document.file_name || `document${docExt}`
+    console.log('[EXTRACT] downloading %s (%d bytes)', docName, msg.document.file_size)
 
     try {
       const file = await ctx.api.getFile(msg.document.file_id)
       const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`
       const response = await fetch(fileUrl)
-      const pdfBuffer = Buffer.from(await response.arrayBuffer())
+      const docBuffer = Buffer.from(await response.arrayBuffer())
 
-      // Extract text via pdftotext
-      mkdirSync('/tmp/collector-pdf', { recursive: true })
-      const tmpPdf = `/tmp/collector-pdf/${Date.now()}.pdf`
-      const tmpTxt = `${tmpPdf}.txt`
-      writeFileSync(tmpPdf, pdfBuffer)
+      // Save to temp, extract via universal script
+      mkdirSync('/tmp/collector-docs', { recursive: true })
+      const tmpFile = `/tmp/collector-docs/${Date.now()}${docExt}`
+      writeFileSync(tmpFile, docBuffer)
+
       try {
-        execSync(`pdftotext -layout "${tmpPdf}" "${tmpTxt}"`, { timeout: 30000 })
-        const extractedText = readFileSync(tmpTxt, 'utf8').trim()
+        const extracted = execSync(
+          `node /root/collector-bot/scripts/extract-text.mjs "${tmpFile}"`,
+          { timeout: 60000, maxBuffer: 50 * 1024 * 1024, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }
+        ).toString('utf8').trim()
+
         const text = caption
-          ? `${caption}\n\n${extractedText}`
-          : extractedText
-        console.log('[PDF] extracted %d chars from %s', extractedText.length, pdfName)
+          ? `${caption}\n\n${extracted}`
+          : extracted
+        console.log('[EXTRACT] got %d chars from %s', extracted.length, docName)
 
-        // Store PDF buffer for upload during save
-        pendingPdfs.set(ctx.chat!.id, { buffer: pdfBuffer, filename: pdfName })
+        // Store file buffer for upload during save
+        pendingPdfs.set(ctx.chat!.id, { buffer: docBuffer, filename: docName })
 
-        await processNewContent(ctx, 'документ' as ContentType, text, name, url, [], '')
+        await processNewContent(ctx, 'документ', text, name, url, [], '')
       } finally {
-        try { unlinkSync(tmpPdf) } catch {}
-        try { unlinkSync(tmpTxt) } catch {}
+        try { unlinkSync(tmpFile) } catch {}
       }
     } catch (err: any) {
-      console.error('[PDF] extraction failed:', err.message)
-      // Fallback: save without text extraction
-      const text = caption || pdfName
-      await processNewContent(ctx, 'документ' as ContentType, text, name, url, [], '')
+      console.error('[EXTRACT] failed:', err.message)
+      const text = caption || docName
+      await processNewContent(ctx, 'документ', text, name, url, [], '')
     }
     return
   }

@@ -45,9 +45,10 @@ export function buildMarkdown(data: NoteData): string {
   lines.push(`# ${data.title}`)
   lines.push('')
 
-  // PDF source block
+  // Document source block
   if (data.pdfAttachment) {
-    lines.push(`> 📄 Заметка сформирована на основе PDF: [${data.pdfAttachment.split('/').pop()}](${data.pdfAttachment})`)
+    const fname = data.pdfAttachment.split('/').pop() || 'документ'
+    lines.push(`> 📄 Заметка сформирована на основе файла: [${fname}](${data.pdfAttachment})`)
     lines.push('')
   }
 
