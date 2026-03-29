@@ -23,16 +23,23 @@ async def main():
     api_hash = os.environ["TELEGRAM_API_HASH"]
     bot_token = os.environ["TELEGRAM_BOT_TOKEN"]
 
+    # Use in_memory storage to avoid session file conflicts
     async with Client(
-        "collector_downloader",
+        "collector_dl",
         api_id=api_id,
         api_hash=api_hash,
         bot_token=bot_token,
-        workdir="/tmp",
+        in_memory=True,
         no_updates=True,
     ) as app:
         msg = await app.get_messages(chat_id, message_id)
-        await app.download_media(msg, file_name=output_path)
-        print(output_path)
+        if not msg or msg.empty:
+            print(f"Message {message_id} not found in chat {chat_id}", file=sys.stderr)
+            sys.exit(1)
+        if not (msg.video or msg.document or msg.audio or msg.voice or msg.animation):
+            print(f"Message {message_id} has no downloadable media. Type: {msg.media}", file=sys.stderr)
+            sys.exit(1)
+        path = await app.download_media(msg, file_name=output_path)
+        print(path)
 
 asyncio.run(main())

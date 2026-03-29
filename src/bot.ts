@@ -360,18 +360,20 @@ async function downloadTelegramFile(ctx: MyContext, fileId: string, chatId: numb
     if (!String(err.message || err).toLowerCase().includes('too big')) throw err
 
     // Fallback: Pyrogram MTProto (up to 2GB)
-    console.log('[DOWNLOAD] File too big for Bot API, using Pyrogram MTProto...')
+    console.log('[DOWNLOAD] File too big for Bot API, using Pyrogram MTProto... chat=%d msg=%d', chatId, messageId)
     const tmpPath = `/tmp/collector-media/pyro_${Date.now()}.mp4`
     mkdirSync('/tmp/collector-media', { recursive: true })
 
     const result = execSync(
       `python3 /root/collector-bot/scripts/download-large.py ${chatId} ${messageId} "${tmpPath}"`,
-      { timeout: 600_000, env: { ...process.env } }
-    ).toString().trim()
+      { timeout: 600_000, env: { ...process.env }, encoding: 'utf-8' }
+    ).trim()
 
+    const downloadedPath = result || tmpPath
+    console.log('[DOWNLOAD] Pyrogram downloaded to: %s', downloadedPath)
     const { readFileSync, unlinkSync: uSync } = await import('node:fs')
-    const buf = readFileSync(result || tmpPath)
-    try { uSync(result || tmpPath) } catch {}
+    const buf = readFileSync(downloadedPath)
+    try { uSync(downloadedPath) } catch {}
     return buf
   }
 }
