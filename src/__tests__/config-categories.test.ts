@@ -48,8 +48,8 @@ describe('CATEGORY_MAP', () => {
 })
 
 describe('CATEGORY_TAGS', () => {
-  it('бизнес has 5 tags', () => {
-    expect(CATEGORY_TAGS['бизнес']).toHaveLength(5)
+  it('бизнес has 8 tags', () => {
+    expect(CATEGORY_TAGS['бизнес']).toHaveLength(8)
   })
 
   it('has no inbox key', () => {
