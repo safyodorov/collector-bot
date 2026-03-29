@@ -8,7 +8,7 @@ import { execSync } from 'child_process'
 import { writeFileSync, readFileSync, unlinkSync, mkdirSync } from 'fs'
 import { randomBytes } from 'node:crypto'
 import { extractVideoUrl, formatDuration, getVideoInfo, DurationError, DownloadError } from './services/downloader.js'
-import { processMediaUrl, type PipelineResult } from './services/media-pipeline.js'
+import { processMediaUrl, processVideoFile, type PipelineResult } from './services/media-pipeline.js'
 
 // Session state
 interface SessionData {
@@ -346,12 +346,16 @@ interface VideoGroupBuffer {
 }
 const videoGroupBuffers = new Map<string, VideoGroupBuffer>()
 
+// Store pending video buffers by chatId for later processing
+const pendingVideoBuffers = new Map<number, Buffer[]>()
+
 async function flushVideoGroup(mgId: string) {
   const buf = videoGroupBuffers.get(mgId)
   if (!buf) return
   videoGroupBuffers.delete(mgId)
   console.log('[VIDEO_GROUP] %s: %d videos, caption=%s', mgId, buf.fileIds.length, buf.caption?.slice(0, 50) || '-')
-  // Save all videos as attachments, create one note
+
+  // Download all video files from Telegram
   const buffers: Buffer[] = []
   for (const fileId of buf.fileIds) {
     try {
@@ -363,11 +367,32 @@ async function flushVideoGroup(mgId: string) {
       console.error('[VIDEO_GROUP] Failed to download video:', err)
     }
   }
-  // Store video buffers as pending "photos" (reuse same mechanism)
-  if (buffers.length > 0) {
-    pendingPhotos.set(buf.chatId, buffers)
+
+  if (buffers.length === 0) {
+    await buf.ctx.reply('Не удалось скачать видео.')
+    return
   }
-  await processNewContent(buf.ctx, 'видео', buf.caption, buf.source, buf.sourceUrl, [], '')
+
+  // Store buffers for later upload
+  pendingVideoBuffers.set(buf.chatId, buffers)
+
+  // Show media processing options
+  const id = randomBytes(6).toString('hex')
+  pendingMedia.set(id, `__video__:${buf.chatId}`)
+  setTimeout(() => pendingMedia.delete(id), 30 * 60 * 1000)
+
+  const title = buf.caption || 'Видео'
+  const keyboard = new InlineKeyboard()
+    .text('Саммари + транскрипт', `media:full:${id}`)
+    .row()
+    .text('Только саммари', `media:summary:${id}`)
+    .row()
+    .text('Сохранить без расшифровки', `media:nosub:${id}`)
+
+  await buf.ctx.reply(
+    `Видео: ${title} (${buffers.length} файл${buffers.length > 1 ? 'а/ов' : ''})\n\nЧто сделать?`,
+    { reply_markup: keyboard }
+  )
 }
 
 bot.on(['message:document', 'message:video', 'message:animation', 'message:voice', 'message:audio'], async (ctx) => {
@@ -403,6 +428,43 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
         ctx,
         timer: setTimeout(() => flushVideoGroup(mgId), 800),
       })
+    }
+    return
+  }
+
+  // Single video (no media group) — offer transcription
+  if (msg.video && !mgId) {
+    if (ctx.session.state !== 'idle') {
+      pendingPhotos.delete(ctx.chat!.id)
+      pendingPdfs.delete(ctx.chat!.id)
+      ctx.session = defaultSession()
+    }
+
+    const caption = msg.caption || ''
+    try {
+      const file = await ctx.api.getFile(msg.video.file_id)
+      const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`
+      const response = await fetch(fileUrl)
+      const videoBuf = Buffer.from(await response.arrayBuffer())
+
+      pendingVideoBuffers.set(ctx.chat!.id, [videoBuf])
+
+      const id = randomBytes(6).toString('hex')
+      pendingMedia.set(id, `__video__:${ctx.chat!.id}`)
+      setTimeout(() => pendingMedia.delete(id), 30 * 60 * 1000)
+
+      const title = caption || 'Видео'
+      const keyboard = new InlineKeyboard()
+        .text('Саммари + транскрипт', `media:full:${id}`)
+        .row()
+        .text('Только саммари', `media:summary:${id}`)
+        .row()
+        .text('Сохранить без расшифровки', `media:nosub:${id}`)
+
+      await ctx.reply(`Видео: ${title}\n\nЧто сделать?`, { reply_markup: keyboard })
+    } catch (err) {
+      console.error('[VIDEO] Failed to download:', err)
+      await ctx.reply('Не удалось скачать видео. Возможно, файл слишком большой (лимит Telegram Bot API — 20 МБ).')
     }
     return
   }
@@ -487,14 +549,15 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (action === 'skip') {
       pendingMedia.delete(id)
+      pendingVideoBuffers.delete(ctx.chat!.id)
       await ctx.editMessageText('Обработка отменена.')
       return
     }
 
-    const url = pendingMedia.get(id)
+    const mediaRef = pendingMedia.get(id)
     pendingMedia.delete(id)
 
-    if (!url) {
+    if (!mediaRef) {
       await ctx.editMessageText('Ссылка устарела. Отправьте видео ещё раз.')
       return
     }
@@ -512,12 +575,52 @@ bot.on('callback_query:data', async (ctx) => {
       } catch { /* ignore edit errors */ }
     }
 
-    // Start pipeline in background
-    const pipelinePromise = processMediaUrl(url, editStatus)
+    // Check if this is a local video file or a URL
+    const isVideoFile = mediaRef.startsWith('__video__:')
+
+    if (action === 'nosub') {
+      // Save without transcription — just save video as attachment
+      if (isVideoFile) {
+        const videoBuffers = pendingVideoBuffers.get(chatId) || []
+        pendingVideoBuffers.delete(chatId)
+        // Store as pending photos to reuse attachment upload logic
+        if (videoBuffers.length > 0) {
+          pendingPhotos.set(chatId, videoBuffers)
+        }
+        await processNewContent(ctx, 'видео', ctx.callbackQuery.message?.text?.split('\n')[0]?.replace('Видео: ', '') || 'Видео', '', '', [], '')
+      }
+      return
+    }
+
+    let pipelinePromise: Promise<PipelineResult>
+
+    if (isVideoFile) {
+      // Process local video file
+      const videoBuffers = pendingVideoBuffers.get(chatId) || []
+      pendingVideoBuffers.delete(chatId)
+      if (videoBuffers.length === 0) {
+        await ctx.editMessageText('Видео не найдено. Отправьте ещё раз.')
+        return
+      }
+      const title = ctx.callbackQuery.message?.text?.split('\n')[0]?.replace('Видео: ', '') || 'Видео'
+      // Process first video (transcribe)
+      pipelinePromise = processVideoFile(videoBuffers[0], title, editStatus)
+      // Store remaining videos as attachments
+      if (videoBuffers.length > 1) {
+        pendingPhotos.set(chatId, videoBuffers.slice(1))
+      }
+    } else {
+      // Process URL
+      pipelinePromise = processMediaUrl(mediaRef, editStatus)
+    }
+
     runningPipelines.set(chatId, { promise: pipelinePromise, statusMsgId, saveTranscript })
 
     // Show category selection immediately (while pipeline runs in background)
-    await processNewContent(ctx, 'видео', `Видео: ${url}`, '', '', [], url)
+    const noteTitle = isVideoFile
+      ? (ctx.callbackQuery.message?.text?.split('\n')[0]?.replace('Видео: ', '') || 'Видео')
+      : `Видео: ${mediaRef}`
+    await processNewContent(ctx, 'видео', noteTitle, '', '', [], isVideoFile ? '' : mediaRef)
     return
   }
 

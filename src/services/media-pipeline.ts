@@ -3,6 +3,8 @@ import { transcribeAudio } from './transcriber.js'
 import { generateSummary } from './summarizer.js'
 import { TEMP_DIR } from '../config.js'
 import { unlinkSync, existsSync } from 'node:fs'
+import { execSync } from 'node:child_process'
+import { resolve } from 'node:path'
 
 // --- Concurrency limiter ---
 
@@ -21,6 +23,60 @@ export interface PipelineResult {
 }
 
 // --- Pipeline ---
+
+/**
+ * Process a local video file: extract audio → transcribe → summarize
+ */
+export async function processVideoFile(
+  videoBuffer: Buffer,
+  title: string,
+  onProgress: (msg: string) => Promise<void>,
+): Promise<PipelineResult> {
+  if (activePipelines >= MAX_CONCURRENT_PIPELINES) {
+    throw new Error('Конвейер занят, попробуйте позже')
+  }
+
+  activePipelines++
+  const videoPath = resolve(TEMP_DIR, `video_${Date.now()}.mp4`)
+  const audioPath = resolve(TEMP_DIR, `audio_${Date.now()}.mp3`)
+
+  try {
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(videoPath, videoBuffer)
+
+    // Extract audio with ffmpeg
+    await onProgress('Извлекаю аудио из видео...')
+    execSync(`ffmpeg -i "${videoPath}" -vn -acodec libmp3lame -q:a 4 "${audioPath}" -y 2>/dev/null`, { timeout: 300_000 })
+
+    // Get duration from ffprobe
+    let duration = 0
+    try {
+      const durationStr = execSync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`, { encoding: 'utf-8' }).trim()
+      duration = Math.round(parseFloat(durationStr))
+    } catch {}
+
+    // Transcribe
+    await onProgress('Транскрибирую...')
+    const transcription = await transcribeAudio(audioPath)
+
+    // Summarize
+    await onProgress('Генерирую саммари...')
+    const summary = await generateSummary(transcription.text)
+
+    return {
+      title,
+      duration,
+      language: transcription.language,
+      summary,
+      textWithTimecodes: transcription.textWithTimecodes,
+      noteUploaded: false,
+    }
+  } finally {
+    activePipelines--
+    if (existsSync(videoPath)) try { unlinkSync(videoPath) } catch {}
+    if (existsSync(audioPath)) try { unlinkSync(audioPath) } catch {}
+  }
+}
 
 export async function processMediaUrl(
   url: string,
