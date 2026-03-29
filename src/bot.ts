@@ -310,11 +310,11 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
           { timeout: 60000, maxBuffer: 50 * 1024 * 1024, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }
         ).toString('utf8').trim()
 
-        // Cap at 100K chars to avoid OOM in session/save
-        const MAX_TEXT = 100_000
+        // Cap at 500K chars (~200 pages A4) to avoid OOM in session/save
+        const MAX_TEXT = 500_000
         if (extracted.length > MAX_TEXT) {
           console.log('[EXTRACT] truncating %d → %d chars', extracted.length, MAX_TEXT)
-          extracted = extracted.slice(0, MAX_TEXT) + '\n\n---\n*Текст обрезан (оригинал в прикреплённом файле)*'
+          extracted = `> ⚠️ Документ обрезан (${Math.round(extracted.length / 1000)}K → ${MAX_TEXT / 1000}K символов). Полный текст в прикреплённом файле.\n\n` + extracted.slice(0, MAX_TEXT)
         }
 
         const text = caption
