@@ -364,9 +364,9 @@ async function downloadTelegramFile(ctx: MyContext, fileId: string, chatId: numb
     const tmpPath = `/tmp/collector-media/pyro_${Date.now()}.mp4`
     mkdirSync('/tmp/collector-media', { recursive: true })
 
+    const { spawn: spawnProc } = await import('node:child_process')
     const downloadedPath = await new Promise<string>((resolve, reject) => {
-      const { spawn } = require('node:child_process')
-      const proc = spawn('python3', [
+      const proc = spawnProc('python3', [
         '/root/collector-bot/scripts/download-large.py',
         String(chatId), String(messageId), tmpPath
       ], { env: process.env, timeout: 600_000 })
