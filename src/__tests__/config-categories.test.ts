@@ -22,7 +22,7 @@ describe('CATEGORY_MAP', () => {
     expect(biz.path).toBe('/Бизнес/')
     expect(biz.subs).toBeDefined()
     expect(Object.keys(biz.subs!)).toHaveLength(7)
-    expect(biz.subs!['wb']!.path).toBe('/Бизнес/WB/')
+    expect(biz.subs!['закупки']!.path).toBe('/Бизнес/Закупки/')
   })
 
   it('inbox has path /Inbox/ and no subs', () => {

@@ -38,7 +38,7 @@ export const CATEGORY_MAP: Record<string, CategoryDef> = {
     subs: {
       wb: { label: 'WB', path: '/Бизнес/WB/' },
       ozon: { label: 'Ozon', path: '/Бизнес/Ozon/' },
-      поставщики: { label: 'Поставщики', path: '/Бизнес/Поставщики/' },
+      закупки: { label: 'Закупки', path: '/Бизнес/Закупки/' },
       финансы: { label: 'Финансы', path: '/Бизнес/Финансы/' },
       аналитика: { label: 'Аналитика', path: '/Бизнес/Аналитика/' },
       контент: { label: 'Контент', path: '/Бизнес/Контент/' },
