@@ -526,9 +526,11 @@ bot.on('callback_query:data', async (ctx) => {
         const sub = CATEGORY_MAP[catKey]?.subs?.[subPart]
         if (sub) {
           s.selectedFolder = sub.path
-          s.selectedCategory = catKey
+          // Use subcategory-specific tags if available, fall back to category
+          const tagKey = CATEGORY_TAGS[`${catKey}/${subPart}`] ? `${catKey}/${subPart}` : catKey
+          s.selectedCategory = tagKey
           s.state = 'awaiting_tags'
-          await ctx.editMessageText('Выберите теги:', { reply_markup: buildTagKeyboard(catKey, []) })
+          await ctx.editMessageText('Выберите теги:', { reply_markup: buildTagKeyboard(tagKey, []) })
         }
       }
       return
