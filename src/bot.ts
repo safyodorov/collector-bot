@@ -369,7 +369,9 @@ async function flushVideoGroup(mgId: string) {
   }
 
   if (buffers.length === 0) {
-    await buf.ctx.reply('Не удалось скачать видео.')
+    // Videos too big for Bot API (>20MB) — offer to save as text note only
+    console.log('[VIDEO_GROUP] All videos too big, fallback to text note')
+    await processNewContent(buf.ctx, 'видео', buf.caption || 'Видео (файл слишком большой для скачивания)', buf.source, buf.sourceUrl, [], '')
     return
   }
 
@@ -462,9 +464,11 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
         .text('Сохранить без расшифровки', `media:nosub:${id}`)
 
       await ctx.reply(`Видео: ${title}\n\nЧто сделать?`, { reply_markup: keyboard })
-    } catch (err) {
-      console.error('[VIDEO] Failed to download:', err)
-      await ctx.reply('Не удалось скачать видео. Возможно, файл слишком большой (лимит Telegram Bot API — 20 МБ).')
+    } catch (err: any) {
+      console.error('[VIDEO] Failed to download:', err.message || err)
+      // Fallback: save as text note without media
+      const { name: srcName, url: srcUrl } = extractSource(ctx.message.forward_origin)
+      await processNewContent(ctx, 'видео', caption || 'Видео (файл слишком большой для скачивания)', srcName, srcUrl, [], '')
     }
     return
   }
