@@ -8,7 +8,7 @@ import { execSync } from 'child_process'
 import { writeFileSync, readFileSync, unlinkSync, mkdirSync } from 'fs'
 import { randomBytes } from 'node:crypto'
 import { extractVideoUrl, formatDuration, getVideoInfo, DurationError, DownloadError } from './services/downloader.js'
-import { processMediaUrl } from './services/media-pipeline.js'
+import { processMediaUrl, type PipelineResult } from './services/media-pipeline.js'
 
 // Session state
 interface SessionData {
@@ -63,6 +63,8 @@ const mediaGroupBuffers = new Map<string, MediaGroupBuffer>()
 
 // Media pipeline: store URLs by short ID to avoid Telegram's 64-byte callback_data limit
 const pendingMedia = new Map<string, string>()
+// Store running pipeline promises by chatId — resolved when pipeline finishes
+const runningPipelines = new Map<number, { promise: Promise<PipelineResult>; statusMsgId?: number; saveVideo: boolean }>()
 
 async function handleMediaUrl(ctx: MyContext, url: string, chatId: number): Promise<void> {
   try {
@@ -430,51 +432,25 @@ bot.on('callback_query:data', async (ctx) => {
       return
     }
 
+    const saveVideo = action === 'process'
+    const chatId = ctx.chat!.id
+
+    // Update status message in the original message
+    const statusMsgId = ctx.callbackQuery.message?.message_id
     const editStatus = async (text: string) => {
       try {
-        await ctx.editMessageText(text)
+        if (statusMsgId) {
+          await ctx.api.editMessageText(chatId, statusMsgId, text)
+        }
       } catch { /* ignore edit errors */ }
     }
 
-    try {
-      const result = await processMediaUrl(url, editStatus)
+    // Start pipeline in background
+    const pipelinePromise = processMediaUrl(url, editStatus)
+    runningPipelines.set(chatId, { promise: pipelinePromise, statusMsgId, saveVideo })
 
-      const lines = [
-        result.title,
-        'Длительность: ' + formatDuration(result.duration),
-        'Язык: ' + result.language,
-        '',
-        result.summary,
-      ]
-      if (result.noteUploaded) {
-        lines.push('', 'Заметка сохранена в Obsidian.')
-      }
-
-      const finalText = lines.join('\n')
-
-      if (finalText.length <= 4096) {
-        await ctx.editMessageText(finalText)
-      } else {
-        await ctx.editMessageText(finalText.slice(0, 4090) + '...')
-      }
-
-    } catch (err) {
-      let errorMsg: string
-      if (err instanceof DurationError) {
-        errorMsg = 'Видео слишком длинное (' + formatDuration(err.duration) + '). Максимум: ' + formatDuration(err.maxDuration) + '.'
-      } else if (err instanceof DownloadError) {
-        errorMsg = 'Не удалось скачать видео. Возможно, оно приватное или удалено.'
-      } else {
-        const msg = err instanceof Error ? err.message : String(err)
-        if (msg.includes('Конвейер занят')) {
-          errorMsg = 'Конвейер занят обработкой других видео. Попробуйте через пару минут.'
-        } else {
-          errorMsg = 'Произошла ошибка при обработке видео. Попробуйте позже.'
-          console.error('[MEDIA] Pipeline error:', err)
-        }
-      }
-      await editStatus(errorMsg)
-    }
+    // Show category selection immediately (while pipeline runs in background)
+    await processNewContent(ctx, 'видео', `Видео: ${url}`, '', '', [], url)
     return
   }
 
@@ -656,6 +632,95 @@ bot.on('message', async (ctx) => {
  */
 async function doSave(ctx: MyContext, title: string) {
   const s = ctx.session
+  const chatId = ctx.chat!.id
+
+  // Check if media pipeline is running for this chat
+  const pipeline = runningPipelines.get(chatId)
+  if (pipeline) {
+    await ctx.reply('Ожидаю завершения обработки видео...')
+    try {
+      const mediaResult = await pipeline.promise
+
+      // Update status message
+      if (pipeline.statusMsgId) {
+        try {
+          await ctx.api.editMessageText(chatId, pipeline.statusMsgId, 'Обработка завершена. Сохраняю в Obsidian...')
+        } catch {}
+      }
+
+      // Use video title if user skipped custom title
+      const finalTitle = title === s.text ? mediaResult.title : title
+
+      // Build enriched text: summary + link to transcript
+      const date = new Date().toISOString().slice(0, 10)
+      const transcriptFilename = buildFilename(finalTitle, date) .replace('.md', '_transcript.md')
+
+      // Save transcript file to Yandex.Disk
+      const { writeFileSync: wfs, mkdirSync: mds } = await import('node:fs')
+      const { resolve } = await import('node:path')
+      const tmpDir = '/tmp/collector-media'
+      mds(tmpDir, { recursive: true })
+      const transcriptTmpPath = resolve(tmpDir, transcriptFilename)
+      wfs(transcriptTmpPath, mediaResult.textWithTimecodes || '', 'utf-8')
+
+      // Upload transcript to attachments
+      try {
+        const { putFile, ensureDir } = await import('./services/webdav.js')
+        await ensureDir('/attachments/')
+        const transcriptBuf = Buffer.from(mediaResult.textWithTimecodes || '', 'utf-8')
+        await putFile(`/attachments/${transcriptFilename}`, transcriptBuf)
+        console.log(`[MEDIA] Transcript uploaded: /attachments/${transcriptFilename}`)
+      } catch (err) {
+        console.error('[MEDIA] Transcript upload failed:', err)
+      }
+
+      // Clean up temp
+      try { (await import('node:fs')).unlinkSync(transcriptTmpPath) } catch {}
+
+      // Compose note text with summary + transcript link
+      const noteText = `${mediaResult.summary}\n\n## Транскрипт\n\n![[${transcriptFilename}]]`
+
+      const result = await saveEntry({
+        title: finalTitle,
+        text: noteText,
+        contentType: 'видео',
+        source: s.source,
+        sourceUrl: s.sourceUrl,
+        originalUrl: s.originalUrl,
+        videoYaDiskUrl: '',
+        hash: s.hash,
+        folderPath: s.selectedFolder,
+        tags: [...s.selectedTags, 'video', 'transcript'],
+      }, [], undefined)
+
+      const tagsDisplay = s.selectedTags.length > 0 ? s.selectedTags.map(t => '#' + t).join(' ') : 'нет'
+      await ctx.reply(`Сохранено в Obsidian: ${result.title}\n${result.path}\nТеги: ${tagsDisplay}\nДлительность: ${formatDuration(mediaResult.duration)}\nЯзык: ${mediaResult.language}`)
+
+      // Update original status message
+      if (pipeline.statusMsgId) {
+        try {
+          await ctx.api.editMessageText(chatId, pipeline.statusMsgId, `Готово: ${finalTitle}`)
+        } catch {}
+      }
+
+    } catch (err: any) {
+      console.error('[MEDIA] Pipeline error during save:', err)
+      if (err instanceof DurationError) {
+        await ctx.reply('Видео слишком длинное. Максимум: ' + formatDuration(err.maxDuration) + '.')
+      } else if (err instanceof DownloadError) {
+        await ctx.reply('Не удалось скачать видео.')
+      } else {
+        await ctx.reply(`Ошибка обработки видео: ${err.message}`)
+      }
+    } finally {
+      runningPipelines.delete(chatId)
+    }
+
+    ctx.session = defaultSession()
+    return
+  }
+
+  // --- Normal (non-media) save ---
   await ctx.reply('Сохраняю...')
 
   try {
@@ -675,7 +740,6 @@ async function doSave(ctx: MyContext, title: string) {
     }
 
     // Prepare photo buffers
-    const chatId = ctx.chat!.id
     const buffers = pendingPhotos.get(chatId) || []
     const photoBuffers = buffers.map((buffer, i) => ({
       name: `img_${Date.now()}_${contentHash(buffer.toString('base64')).slice(0, 8)}_${i}.jpg`,
@@ -706,8 +770,8 @@ async function doSave(ctx: MyContext, title: string) {
     await ctx.reply(`Ошибка при сохранении: ${err.message}`)
   }
 
-  pendingPhotos.delete(ctx.chat!.id)
-  pendingPdfs.delete(ctx.chat!.id)
+  pendingPhotos.delete(chatId)
+  pendingPdfs.delete(chatId)
   ctx.session = defaultSession()
 }
 

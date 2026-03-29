@@ -55,11 +55,11 @@ export function createObsidianNote(params: {
     '\n' +
     `# ${params.title}\n` +
     '\n' +
-    '## Summary\n' +
+    '## Саммари\n' +
     '\n' +
     params.summary + '\n' +
     '\n' +
-    '## Transcript\n' +
+    '## Транскрипт\n' +
     '\n' +
     `![[${transcriptFilename}]]\n`
 
