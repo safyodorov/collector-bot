@@ -76,8 +76,13 @@ sys.stdout.write(md)
 async function extractDocx(path) {
   const mammoth = await import('mammoth')
   const buffer = readFileSync(path)
-  const result = await mammoth.convertToMarkdown({ buffer })
-  return result.value
+  // Skip embedded images — they bloat output to megabytes of base64
+  const options = {
+    convertImage: mammoth.images.imgElement(() => ({ src: '' })),
+  }
+  const result = await mammoth.convertToMarkdown({ buffer }, options)
+  // Remove empty image tags left behind
+  return result.value.replace(/!\[\]\(\)/g, '').replace(/\n{3,}/g, '\n\n')
 }
 
 // --- DOC via antiword ---

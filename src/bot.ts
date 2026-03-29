@@ -305,10 +305,17 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
       writeFileSync(tmpFile, docBuffer)
 
       try {
-        const extracted = execSync(
+        let extracted = execSync(
           `node /root/collector-bot/scripts/extract-text.mjs "${tmpFile}"`,
           { timeout: 60000, maxBuffer: 50 * 1024 * 1024, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }
         ).toString('utf8').trim()
+
+        // Cap at 100K chars to avoid OOM in session/save
+        const MAX_TEXT = 100_000
+        if (extracted.length > MAX_TEXT) {
+          console.log('[EXTRACT] truncating %d → %d chars', extracted.length, MAX_TEXT)
+          extracted = extracted.slice(0, MAX_TEXT) + '\n\n---\n*Текст обрезан (оригинал в прикреплённом файле)*'
+        }
 
         const text = caption
           ? `${caption}\n\n${extracted}`
