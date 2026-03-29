@@ -359,20 +359,35 @@ async function downloadTelegramFile(ctx: MyContext, fileId: string, chatId: numb
   } catch (err: any) {
     if (!String(err.message || err).toLowerCase().includes('too big')) throw err
 
-    // Fallback: Pyrogram MTProto (up to 2GB)
+    // Fallback: Pyrogram MTProto (up to 2GB) — async to avoid blocking event loop
     console.log('[DOWNLOAD] File too big for Bot API, using Pyrogram MTProto... chat=%d msg=%d', chatId, messageId)
     const tmpPath = `/tmp/collector-media/pyro_${Date.now()}.mp4`
     mkdirSync('/tmp/collector-media', { recursive: true })
 
-    const result = execSync(
-      `python3 /root/collector-bot/scripts/download-large.py ${chatId} ${messageId} "${tmpPath}"`,
-      { timeout: 600_000, env: { ...process.env }, encoding: 'utf-8' }
-    ).trim()
+    const downloadedPath = await new Promise<string>((resolve, reject) => {
+      const { spawn } = require('node:child_process')
+      const proc = spawn('python3', [
+        '/root/collector-bot/scripts/download-large.py',
+        String(chatId), String(messageId), tmpPath
+      ], { env: process.env, timeout: 600_000 })
 
-    const downloadedPath = result || tmpPath
+      let stdout = ''
+      let stderr = ''
+      proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+      proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+      proc.on('close', (code: number) => {
+        if (code === 0) {
+          resolve(stdout.trim() || tmpPath)
+        } else {
+          reject(new Error(`Pyrogram exit ${code}: ${stderr.slice(-500)}`))
+        }
+      })
+      proc.on('error', reject)
+    })
+
     console.log('[DOWNLOAD] Pyrogram downloaded to: %s', downloadedPath)
-    const { readFileSync, unlinkSync: uSync } = await import('node:fs')
-    const buf = readFileSync(downloadedPath)
+    const { readFileSync: rfs, unlinkSync: uSync } = await import('node:fs')
+    const buf = rfs(downloadedPath)
     try { uSync(downloadedPath) } catch {}
     return buf
   }
