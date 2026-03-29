@@ -336,7 +336,7 @@ const EXTRACTABLE_MIMES: Record<string, string> = {
 // Document messages (forwarded files, videos from channels)
 // Video media group buffer — groups multiple videos from one forward into a single note
 interface VideoGroupBuffer {
-  fileIds: string[]
+  files: { fileId: string; messageId: number }[]
   caption: string
   source: string
   sourceUrl: string
@@ -349,20 +349,45 @@ const videoGroupBuffers = new Map<string, VideoGroupBuffer>()
 // Store pending video buffers by chatId for later processing
 const pendingVideoBuffers = new Map<number, Buffer[]>()
 
+// Download file from Telegram — Bot API first, Pyrogram MTProto fallback for large files
+async function downloadTelegramFile(ctx: MyContext, fileId: string, chatId: number, messageId: number): Promise<Buffer> {
+  try {
+    const file = await ctx.api.getFile(fileId)
+    const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`
+    const response = await fetch(fileUrl)
+    return Buffer.from(await response.arrayBuffer())
+  } catch (err: any) {
+    if (!String(err.message || err).toLowerCase().includes('too big')) throw err
+
+    // Fallback: Pyrogram MTProto (up to 2GB)
+    console.log('[DOWNLOAD] File too big for Bot API, using Pyrogram MTProto...')
+    const tmpPath = `/tmp/collector-media/pyro_${Date.now()}.mp4`
+    mkdirSync('/tmp/collector-media', { recursive: true })
+
+    const result = execSync(
+      `python3 /root/collector-bot/scripts/download-large.py ${chatId} ${messageId} "${tmpPath}"`,
+      { timeout: 600_000, env: { ...process.env } }
+    ).toString().trim()
+
+    const { readFileSync, unlinkSync: uSync } = await import('node:fs')
+    const buf = readFileSync(result || tmpPath)
+    try { uSync(result || tmpPath) } catch {}
+    return buf
+  }
+}
+
 async function flushVideoGroup(mgId: string) {
   const buf = videoGroupBuffers.get(mgId)
   if (!buf) return
   videoGroupBuffers.delete(mgId)
-  console.log('[VIDEO_GROUP] %s: %d videos, caption=%s', mgId, buf.fileIds.length, buf.caption?.slice(0, 50) || '-')
+  console.log('[VIDEO_GROUP] %s: %d videos, caption=%s', mgId, buf.files.length, buf.caption?.slice(0, 50) || '-')
 
-  // Download all video files from Telegram
+  // Download all video files from Telegram (with MTProto fallback)
   const buffers: Buffer[] = []
-  for (const fileId of buf.fileIds) {
+  for (const { fileId, messageId } of buf.files) {
     try {
-      const file = await buf.ctx.api.getFile(fileId)
-      const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`
-      const response = await fetch(fileUrl)
-      buffers.push(Buffer.from(await response.arrayBuffer()))
+      const videoBuf = await downloadTelegramFile(buf.ctx, fileId, buf.chatId, messageId)
+      buffers.push(videoBuf)
     } catch (err) {
       console.error('[VIDEO_GROUP] Failed to download video:', err)
     }
@@ -410,7 +435,7 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
     const { name, url } = extractSource(ctx.message.forward_origin)
     const existing = videoGroupBuffers.get(mgId)
     if (existing) {
-      existing.fileIds.push(msg.video.file_id)
+      existing.files.push({ fileId: msg.video.file_id, messageId: ctx.message.message_id })
       if (caption) existing.caption = caption
       existing.ctx = ctx
       clearTimeout(existing.timer)
@@ -422,7 +447,7 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
         ctx.session = defaultSession()
       }
       videoGroupBuffers.set(mgId, {
-        fileIds: [msg.video.file_id],
+        files: [{ fileId: msg.video.file_id, messageId: ctx.message.message_id }],
         caption,
         source: name,
         sourceUrl: url,
@@ -444,10 +469,7 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
 
     const caption = msg.caption || ''
     try {
-      const file = await ctx.api.getFile(msg.video.file_id)
-      const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`
-      const response = await fetch(fileUrl)
-      const videoBuf = Buffer.from(await response.arrayBuffer())
+      const videoBuf = await downloadTelegramFile(ctx, msg.video.file_id, ctx.chat!.id, ctx.message.message_id)
 
       pendingVideoBuffers.set(ctx.chat!.id, [videoBuf])
 
