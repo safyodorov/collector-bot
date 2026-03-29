@@ -22,7 +22,7 @@ export const VIDEO_QUALITY = process.env.VIDEO_QUALITY || '1080'
 export const OWNER_CHAT_ID = 81006248
 
 // Content types
-export type ContentType = 'текст' | 'фото' | 'видео' | 'пересланное'
+export type ContentType = 'текст' | 'фото' | 'видео' | 'пересланное' | 'документ'
 
 // Category definitions for vault folder mapping
 export interface CategoryDef {

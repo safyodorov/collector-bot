@@ -63,7 +63,7 @@ describe('CATEGORY_TAGS', () => {
 
 describe('ContentType', () => {
   it('accepts valid content types', () => {
-    const types: ContentType[] = ['текст', 'фото', 'видео', 'пересланное']
-    expect(types).toHaveLength(4)
+    const types: ContentType[] = ['текст', 'фото', 'видео', 'пересланное', 'документ']
+    expect(types).toHaveLength(5)
   })
 })

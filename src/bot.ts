@@ -4,6 +4,8 @@ import { buildCategoryKeyboard, buildSubcategoryKeyboard, buildTagKeyboard, buil
 import { saveEntry, findDuplicate } from './services/storage.js'
 import { contentHash, urlNormalize } from './utils/content-hash.js'
 import { autoTitle, detectVideoUrl, buildFilename } from './utils/text-utils.js'
+import { execSync } from 'child_process'
+import { writeFileSync, readFileSync, unlinkSync, mkdirSync } from 'fs'
 
 // Session state
 interface SessionData {
@@ -40,8 +42,9 @@ type MyContext = Context & { session: SessionData }
 
 const bot = new Bot<MyContext>(BOT_TOKEN)
 
-// Module-level photo buffer storage (do NOT store buffers in grammY session)
+// Module-level buffer storage (do NOT store buffers in grammY session)
 const pendingPhotos = new Map<number, Buffer[]>()
+const pendingPdfs = new Map<number, { buffer: Buffer; filename: string }>()
 
 // Media group buffering: collect all photos from a media group before processing
 interface MediaGroupBuffer {
@@ -261,16 +264,59 @@ async function flushMediaGroup(mgId: string) {
 // Document messages (forwarded files, videos from channels)
 bot.on(['message:document', 'message:video', 'message:animation', 'message:voice', 'message:audio'], async (ctx) => {
   const msg = ctx.message as any
-  console.log('[DOC] received, doc=%s video=%s caption=%s', !!msg.document, !!msg.video, msg.caption?.slice(0, 50))
+  console.log('[DOC] received, doc=%s video=%s mime=%s caption=%s', !!msg.document, !!msg.video, msg.document?.mime_type, msg.caption?.slice(0, 50))
   if (ctx.session.state !== 'idle') {
     pendingPhotos.delete(ctx.chat!.id)
+    pendingPdfs.delete(ctx.chat!.id)
     ctx.session = defaultSession()
   }
 
   const caption = msg.caption || ''
+  const { name, url } = extractSource(ctx.message.forward_origin)
+
+  // PDF handling: download, extract text, save buffer
+  if (msg.document?.mime_type === 'application/pdf') {
+    const pdfName = msg.document.file_name || 'document.pdf'
+    console.log('[PDF] downloading %s (%d bytes)', pdfName, msg.document.file_size)
+
+    try {
+      const file = await ctx.api.getFile(msg.document.file_id)
+      const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`
+      const response = await fetch(fileUrl)
+      const pdfBuffer = Buffer.from(await response.arrayBuffer())
+
+      // Extract text via pdftotext
+      mkdirSync('/tmp/collector-pdf', { recursive: true })
+      const tmpPdf = `/tmp/collector-pdf/${Date.now()}.pdf`
+      const tmpTxt = `${tmpPdf}.txt`
+      writeFileSync(tmpPdf, pdfBuffer)
+      try {
+        execSync(`pdftotext -layout "${tmpPdf}" "${tmpTxt}"`, { timeout: 30000 })
+        const extractedText = readFileSync(tmpTxt, 'utf8').trim()
+        const text = caption
+          ? `${caption}\n\n${extractedText}`
+          : extractedText
+        console.log('[PDF] extracted %d chars from %s', extractedText.length, pdfName)
+
+        // Store PDF buffer for upload during save
+        pendingPdfs.set(ctx.chat!.id, { buffer: pdfBuffer, filename: pdfName })
+
+        await processNewContent(ctx, 'документ' as ContentType, text, name, url, [], '')
+      } finally {
+        try { unlinkSync(tmpPdf) } catch {}
+        try { unlinkSync(tmpTxt) } catch {}
+      }
+    } catch (err: any) {
+      console.error('[PDF] extraction failed:', err.message)
+      // Fallback: save without text extraction
+      const text = caption || pdfName
+      await processNewContent(ctx, 'документ' as ContentType, text, name, url, [], '')
+    }
+    return
+  }
+
   const text = caption || msg.document?.file_name || 'Документ'
   const videoUrl = detectVideoUrl(text)
-  const { name, url } = extractSource(ctx.message.forward_origin)
 
   const contentType: ContentType = videoUrl ? 'видео' : 'пересланное'
   await processNewContent(ctx, contentType, text, name, url, [], videoUrl ? urlNormalize(videoUrl) : '')
@@ -483,6 +529,9 @@ async function doSave(ctx: MyContext, title: string) {
       buffer,
     }))
 
+    // Get pending PDF if any
+    const pdfData = pendingPdfs.get(chatId)
+
     const result = await saveEntry({
       title,
       text: s.text,
@@ -494,7 +543,7 @@ async function doSave(ctx: MyContext, title: string) {
       hash: s.hash,
       folderPath: s.selectedFolder,
       tags: s.selectedTags,
-    }, photoBuffers)
+    }, photoBuffers, pdfData || undefined)
 
     const tagsDisplay = s.selectedTags.length > 0 ? s.selectedTags.map(t => '#' + t).join(' ') : 'нет'
     const sourceDisplay = s.source ? `\nИсточник: ${s.source}${s.sourceUrl ? ' (' + s.sourceUrl + ')' : ''}` : ''
@@ -505,6 +554,7 @@ async function doSave(ctx: MyContext, title: string) {
   }
 
   pendingPhotos.delete(ctx.chat!.id)
+  pendingPdfs.delete(ctx.chat!.id)
   ctx.session = defaultSession()
 }
 

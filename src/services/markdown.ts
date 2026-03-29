@@ -10,6 +10,7 @@ export interface NoteData {
   contentHash: string
   text?: string
   attachments: string[]
+  pdfAttachment?: string
 }
 
 export function buildMarkdown(data: NoteData): string {
@@ -43,6 +44,12 @@ export function buildMarkdown(data: NoteData): string {
 
   lines.push(`# ${data.title}`)
   lines.push('')
+
+  // PDF source block
+  if (data.pdfAttachment) {
+    lines.push(`> 📄 Заметка сформирована на основе PDF: [${data.pdfAttachment.split('/').pop()}](${data.pdfAttachment})`)
+    lines.push('')
+  }
 
   for (const att of data.attachments) {
     lines.push(`![](${att})`)

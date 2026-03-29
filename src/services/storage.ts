@@ -39,7 +39,8 @@ export async function saveEntry(
     folderPath: string       // e.g. "/Бизнес/WB/"
     tags: string[]
   },
-  photoBuffers: { name: string; buffer: Buffer }[]
+  photoBuffers: { name: string; buffer: Buffer }[],
+  pdfFile?: { buffer: Buffer; filename: string }
 ): Promise<SaveResult> {
   const date = new Date().toISOString().slice(0, 10)
   const filename = buildFilename(data.title, date)
@@ -47,7 +48,7 @@ export async function saveEntry(
 
   // Ensure target folder and attachments folder exist
   await ensureDir(`${VAULT_PATH}${data.folderPath}`)
-  if (photoBuffers.length > 0) {
+  if (photoBuffers.length > 0 || pdfFile) {
     await ensureDir(`${VAULT_PATH}/attachments`)
   }
 
@@ -56,6 +57,14 @@ export async function saveEntry(
   for (const photo of photoBuffers) {
     await putFile(`${VAULT_PATH}/attachments/${photo.name}`, new Uint8Array(photo.buffer), 'image/jpeg')
     attachments.push(`attachments/${photo.name}`)
+  }
+
+  // Upload PDF if present
+  let pdfAttachment: string | undefined
+  if (pdfFile) {
+    const pdfName = `pdf_${Date.now()}_${data.hash.slice(0, 8)}_${pdfFile.filename}`
+    await putFile(`${VAULT_PATH}/attachments/${pdfName}`, new Uint8Array(pdfFile.buffer), 'application/pdf')
+    pdfAttachment = `attachments/${pdfName}`
   }
 
   // Build note data and generate markdown
@@ -71,6 +80,7 @@ export async function saveEntry(
     contentHash: data.hash,
     text: data.text || undefined,
     attachments,
+    pdfAttachment,
   }
 
   const markdown = buildMarkdown(noteData)
