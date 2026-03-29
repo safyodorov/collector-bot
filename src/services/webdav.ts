@@ -1,4 +1,5 @@
-import { YANDEX_DISK_TOKEN } from '../config.js'
+import { readFileSync } from 'node:fs'
+import { YANDEX_DISK_TOKEN, OBSIDIAN_VAULT_PATH } from '../config.js'
 
 const API_BASE = 'https://cloud-api.yandex.net/v1/disk'
 
@@ -177,4 +178,44 @@ export async function initWebDAV(): Promise<void> {
     return
   }
   throw new WebDAVError('INIT', '/', res.status, res.statusText)
+}
+
+/**
+ * Upload a local file to Yandex Disk at the given remote path.
+ * Reuses the existing REST API putFile() under the hood.
+ */
+export async function uploadToYandexDisk(
+  localPath: string,
+  remotePath: string,
+): Promise<void> {
+  const content = readFileSync(localPath)
+  const contentType = remotePath.endsWith('.md')
+    ? 'text/markdown; charset=utf-8'
+    : 'application/octet-stream'
+
+  await putFile(remotePath, new Uint8Array(content), contentType)
+  console.log(`[YADISK] Uploaded: ${localPath} -> ${remotePath}`)
+}
+
+/**
+ * Upload an Obsidian note and its transcript to Yandex.Disk.
+ * Ensures the vault directory and attachments subdirectory exist.
+ */
+export async function uploadObsidianNote(
+  notePath: string,
+  transcriptPath: string,
+  noteFilename: string,
+  transcriptFilename: string,
+): Promise<void> {
+  // Ensure vault dir exists
+  await ensureDir(OBSIDIAN_VAULT_PATH)
+  // Ensure attachments subdir for transcripts
+  await ensureDir(`${OBSIDIAN_VAULT_PATH}/attachments`)
+
+  // Upload note to vault root
+  await uploadToYandexDisk(notePath, `${OBSIDIAN_VAULT_PATH}/${noteFilename}`)
+  // Upload transcript to attachments
+  await uploadToYandexDisk(transcriptPath, `${OBSIDIAN_VAULT_PATH}/attachments/${transcriptFilename}`)
+
+  console.log(`[YADISK] Obsidian note uploaded: ${noteFilename} + ${transcriptFilename}`)
 }
