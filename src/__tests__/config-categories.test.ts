@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { CATEGORY_MAP, CATEGORY_TAGS, type ContentType, type CategoryDef } from '../config.js'
 
 describe('CATEGORY_MAP', () => {
-  it('has 8 top-level keys', () => {
+  it('has 10 top-level keys', () => {
     const keys = Object.keys(CATEGORY_MAP)
-    expect(keys).toHaveLength(8)
+    expect(keys).toHaveLength(10)
     expect(keys).toContain('бизнес')
     expect(keys).toContain('ландшафт')
     expect(keys).toContain('тос')
@@ -12,6 +12,8 @@ describe('CATEGORY_MAP', () => {
     expect(keys).toContain('семья')
     expect(keys).toContain('новости')
     expect(keys).toContain('идеи')
+    expect(keys).toContain('кодинг')
+    expect(keys).toContain('нейросети')
     expect(keys).toContain('inbox')
   })
 
@@ -54,8 +56,8 @@ describe('CATEGORY_TAGS', () => {
     expect(CATEGORY_TAGS['inbox']).toBeUndefined()
   })
 
-  it('has 7 category keys', () => {
-    expect(Object.keys(CATEGORY_TAGS)).toHaveLength(7)
+  it('has 9 category keys', () => {
+    expect(Object.keys(CATEGORY_TAGS)).toHaveLength(9)
   })
 })
 

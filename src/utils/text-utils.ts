@@ -51,15 +51,14 @@ export function detectVideoUrl(text: string): string | null {
 const FORBIDDEN_CHARS = /[*"\\/<>:|?#^\[\]]/g
 
 /** Sanitize a string for use as a filename */
-export function sanitizeFilename(title: string, maxBytes = 200): string {
+export function sanitizeFilename(title: string, maxBytes = 400): string {
   let name = title
     .replace(FORBIDDEN_CHARS, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .replace(/ /g, '_')
 
   if (!name || name === '.' || name === '..') {
-    return 'Без-названия'
+    return 'Без названия'
   }
 
   // Truncate at character boundary until within byte limit
@@ -67,13 +66,13 @@ export function sanitizeFilename(title: string, maxBytes = 200): string {
     name = name.slice(0, -1)
   }
 
-  // Remove trailing dots/underscores
-  name = name.replace(/[._]+$/, '')
+  // Remove trailing dots/spaces
+  name = name.replace(/[. ]+$/, '')
 
-  return name || 'Без-названия'
+  return name || 'Без названия'
 }
 
 /** Build a filename from title and date */
 export function buildFilename(title: string, date: string): string {
-  return `${date}_${sanitizeFilename(title)}.md`
+  return `${sanitizeFilename(title)}.md`
 }
