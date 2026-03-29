@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 03-02-PLAN.md -- ALL PLANS COMPLETE
-last_updated: "2026-03-28T07:03:10.595Z"
-last_activity: 2026-03-28
+status: executing
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-29T08:32:17.813Z"
+last_activity: 2026-03-29
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Контент из Telegram попадает в Obsidian vault быстро, с категориями, и доступен на всех устройствах через Яндекс.Диск.
-**Current focus:** All phases complete
+**Current focus:** Phase 04 — media-pipeline
 
 ## Current Position
 
-Phase: 03 (cutover-deploy) — COMPLETE
-Plan: 2 of 2
-Status: Phase complete — ready for verification
-Last activity: 2026-03-28
+Phase: 04 (media-pipeline) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-03-29
 
 Progress: [██████████] 100%
 
@@ -59,6 +59,7 @@ Progress: [██████████] 100%
 | Phase 02 P03 | 12min | 3 tasks | 2 files |
 | Phase 03 P01 | 2min | 2 tasks | 5 files |
 | Phase 03 P02 | 5min | 2 tasks | 1 files |
+| Phase 04 P01 | 5min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -79,10 +80,15 @@ Recent decisions affecting current work:
 - [Phase 02]: Dedup check after title input when filename is known, not on content receipt
 - [Phase 03]: .env gitignored so Notion cleanup there is local-only; VPS .env managed in deploy plan
 - [Phase 03]: YANDEX_DISK_TOKEN set on VPS .env before deploy
+- [Phase 04]: DeepgramClient SDK v5 uses {apiKey} constructor and listen.v1.media.transcribeFile API path
 
 ### Pending Todos
 
 None yet.
+
+### Roadmap Evolution
+
+- Phase 4 added: Media processing pipeline — video/audio download, transcription, summarization, Obsidian notes
 
 ### Blockers/Concerns
 
@@ -90,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T07:03:10.593Z
-Stopped at: Completed 03-02-PLAN.md -- ALL PLANS COMPLETE
+Last session: 2026-03-29T08:32:17.811Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None

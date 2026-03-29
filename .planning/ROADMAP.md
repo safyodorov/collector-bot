@@ -66,3 +66,13 @@ Plans:
 | 1. WebDAV Foundation | 2/2 | Complete   | 2026-03-28 |
 | 2. Content Pipeline | 3/3 | Complete | 2026-03-28 |
 | 3. Cutover & Deploy | 1/2 | In progress | - |
+
+### Phase 4: Media processing pipeline — video/audio download, transcription via Deepgram, summarization via LLM, Obsidian note creation with attachments
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 3
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 4 to break down)
