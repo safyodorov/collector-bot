@@ -64,7 +64,7 @@ const mediaGroupBuffers = new Map<string, MediaGroupBuffer>()
 // Media pipeline: store URLs by short ID to avoid Telegram's 64-byte callback_data limit
 const pendingMedia = new Map<string, string>()
 // Store running pipeline promises by chatId — resolved when pipeline finishes
-const runningPipelines = new Map<number, { promise: Promise<PipelineResult>; statusMsgId?: number; saveTranscript: boolean }>()
+const runningPipelines = new Map<number, { promise: Promise<PipelineResult>; statusMsgId?: number; saveTranscript: boolean; saveVideo: boolean; videoRefs?: { fileId: string; messageId: number }[] }>()
 
 async function handleMediaUrl(ctx: MyContext, url: string, chatId: number): Promise<void> {
   try {
@@ -81,8 +81,6 @@ async function handleMediaUrl(ctx: MyContext, url: string, chatId: number): Prom
       .text('Саммари + транскрипт', `media:full:${id}`)
       .row()
       .text('Только саммари', `media:summary:${id}`)
-      .row()
-      .text('Не обрабатывать', `media:skip:${id}`)
 
     await ctx.reply(
       `Видео: ${info.title}\nДлительность: ${formatDuration(info.duration)}\n\nЧто сделать?`,
@@ -410,11 +408,11 @@ async function flushVideoGroup(mgId: string) {
 
   const title = buf.caption || 'Видео'
   const keyboard = new InlineKeyboard()
+    .text('Саммари + транскрипт + видео', `media:fullvid:${id}`)
+    .row()
     .text('Саммари + транскрипт', `media:full:${id}`)
     .row()
     .text('Только саммари', `media:summary:${id}`)
-    .row()
-    .text('Сохранить без расшифровки', `media:nosub:${id}`)
 
   await buf.ctx.reply(
     `Видео: ${title} (${buf.files.length} файл${buf.files.length > 1 ? 'а/ов' : ''})\n\nЧто сделать?`,
@@ -475,11 +473,11 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
 
     const title = caption || 'Видео'
     const keyboard = new InlineKeyboard()
+      .text('Саммари + транскрипт + видео', `media:fullvid:${id}`)
+      .row()
       .text('Саммари + транскрипт', `media:full:${id}`)
       .row()
       .text('Только саммари', `media:summary:${id}`)
-      .row()
-      .text('Сохранить без расшифровки', `media:nosub:${id}`)
     return
   }
 
@@ -576,7 +574,8 @@ bot.on('callback_query:data', async (ctx) => {
       return
     }
 
-    const saveTranscript = action === 'full'
+    const saveTranscript = action === 'full' || action === 'fullvid'
+    const saveVideo = action === 'fullvid'
     const chatId = ctx.chat!.id
 
     // Update status message in the original message
@@ -644,7 +643,10 @@ bot.on('callback_query:data', async (ctx) => {
       pipelinePromise = processMediaUrl(mediaRef, editStatus)
     }
 
-    runningPipelines.set(chatId, { promise: pipelinePromise, statusMsgId, saveTranscript })
+    // For fullvid: store video refs so doSave can download and attach video later
+    const vidRefs = saveVideo ? (pendingVideoRefs.get(chatId) || undefined) : undefined
+    if (saveVideo) pendingVideoRefs.delete(chatId)
+    runningPipelines.set(chatId, { promise: pipelinePromise, statusMsgId, saveTranscript, saveVideo, videoRefs: vidRefs })
 
     // Show category selection immediately (while pipeline runs in background)
     await processNewContent(ctx, 'видео', noteTitle, '', '', [], isVideo ? '' : mediaRef)
@@ -867,14 +869,37 @@ async function doSave(ctx: MyContext, title: string) {
         }
       }
 
+      // Upload video to attachments (only if user chose "fullvid")
+      let videoSaved = false
+      const videoFilename = buildFilename(finalTitle, date).replace('.md', '.mp4')
+      if (pipeline.saveVideo && pipeline.videoRefs && pipeline.videoRefs.length > 0) {
+        try {
+          const { putFile, ensureDir } = await import('./services/webdav.js')
+          await ensureDir('/attachments/')
+          // Download first video
+          const videoBuf = await downloadTelegramFile(ctx, pipeline.videoRefs[0].fileId, ctx.chat!.id, pipeline.videoRefs[0].messageId)
+          await putFile(`/attachments/${videoFilename}`, videoBuf as any)
+          console.log(`[MEDIA] Video uploaded: /attachments/${videoFilename}`)
+          videoSaved = true
+        } catch (err) {
+          console.error('[MEDIA] Video upload failed:', err)
+        }
+      }
+
       // Compose note text
       const headerLines = []
+      if (videoSaved) {
+        headerLines.push(`> 🎥 Видео: ![[${videoFilename}]]`)
+      }
       if (transcriptSaved) {
         headerLines.push(`> 🎬 Транскрипт: ![[${transcriptFilename}]]`)
       }
-      headerLines.push(`> Источник: ${s.originalUrl}`)
+      headerLines.push(`> Источник: ${s.originalUrl || 'Telegram видео'}`)
       headerLines.push(`> Длительность: ${formatDuration(mediaResult.duration)} | Язык: ${mediaResult.language}`)
       const noteText = `${headerLines.join('\n')}\n\n${mediaResult.summary}`
+
+      const noteTags = [...s.selectedTags, 'video']
+      if (transcriptSaved) noteTags.push('transcript')
 
       const result = await saveEntry({
         title: finalTitle,
@@ -883,10 +908,10 @@ async function doSave(ctx: MyContext, title: string) {
         source: s.source,
         sourceUrl: s.sourceUrl,
         originalUrl: s.originalUrl,
-        videoYaDiskUrl: '',
+        videoYaDiskUrl: videoSaved ? `/attachments/${videoFilename}` : '',
         hash: s.hash,
         folderPath: s.selectedFolder,
-        tags: [...s.selectedTags, 'video', 'transcript'],
+        tags: noteTags,
       }, [], undefined)
 
       const tagsDisplay = s.selectedTags.length > 0 ? s.selectedTags.map(t => '#' + t).join(' ') : 'нет'
