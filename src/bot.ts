@@ -1,4 +1,4 @@
-import { Bot, Context, session } from 'grammy'
+import { Bot, Context, session, InlineKeyboard } from 'grammy'
 import { BOT_TOKEN, OWNER_CHAT_ID, CATEGORY_MAP, CATEGORY_TAGS, VAULT_PATH, type ContentType } from './config.js'
 import { buildCategoryKeyboard, buildSubcategoryKeyboard, buildTagKeyboard, buildTitleKeyboard, buildDuplicateKeyboard } from './keyboards/navigation.js'
 import { saveEntry, findDuplicate } from './services/storage.js'
@@ -6,6 +6,9 @@ import { contentHash, urlNormalize } from './utils/content-hash.js'
 import { autoTitle, detectVideoUrl, buildFilename } from './utils/text-utils.js'
 import { execSync } from 'child_process'
 import { writeFileSync, readFileSync, unlinkSync, mkdirSync } from 'fs'
+import { randomBytes } from 'node:crypto'
+import { extractVideoUrl, formatDuration, getVideoInfo, DurationError, DownloadError } from './services/downloader.js'
+import { processMediaUrl } from './services/media-pipeline.js'
 
 // Session state
 interface SessionData {
@@ -57,6 +60,41 @@ interface MediaGroupBuffer {
   timer: ReturnType<typeof setTimeout>
 }
 const mediaGroupBuffers = new Map<string, MediaGroupBuffer>()
+
+// Media pipeline: store URLs by short ID to avoid Telegram's 64-byte callback_data limit
+const pendingMedia = new Map<string, string>()
+
+async function handleMediaUrl(ctx: MyContext, url: string, chatId: number): Promise<void> {
+  try {
+    const info = await getVideoInfo(url)
+
+    // Store URL by short ID (callback_data 64-byte limit)
+    const id = randomBytes(6).toString('hex')
+    pendingMedia.set(id, url)
+
+    // Auto-expire after 30 minutes
+    setTimeout(() => pendingMedia.delete(id), 30 * 60 * 1000)
+
+    const keyboard = new InlineKeyboard()
+      .text('Сохранить видео', `media:process:${id}`)
+      .row()
+      .text('Только саммари', `media:summary:${id}`)
+      .row()
+      .text('Не обрабатывать', `media:skip:${id}`)
+
+    await ctx.reply(
+      `Видео: ${info.title}\nДлительность: ${formatDuration(info.duration)}\n\nЧто сделать?`,
+      { reply_markup: keyboard }
+    )
+  } catch (err) {
+    if (err instanceof DurationError) {
+      await ctx.reply('Видео слишком длинное (' + formatDuration(err.duration) + '). Максимум: ' + formatDuration(err.maxDuration) + '.')
+    } else {
+      console.error('[MEDIA] Failed to get video info:', err)
+      await ctx.reply('Не удалось получить информацию о видео. Возможно, ссылка некорректна.')
+    }
+  }
+}
 
 // Error handler
 bot.catch((err) => {
@@ -192,6 +230,14 @@ bot.on('message:text', async (ctx) => {
   }
 
   const text = ctx.message.text
+
+  // Media pipeline: intercept YouTube/VK/Rutube URLs for transcription+summary
+  const mediaUrl = extractVideoUrl(text)
+  if (mediaUrl) {
+    await handleMediaUrl(ctx, mediaUrl, ctx.chat!.id)
+    return
+  }
+
   const videoUrl = detectVideoUrl(text)
 
   if (videoUrl) {
@@ -348,6 +394,76 @@ bot.on(['message:document', 'message:video', 'message:animation', 'message:voice
 bot.on('callback_query:data', async (ctx) => {
   const data = ctx.callbackQuery.data
   const s = ctx.session
+
+  // --- MEDIA pipeline callbacks ---
+  if (data.startsWith('media:')) {
+    const parts = data.split(':')
+    const action = parts[1]  // 'process', 'summary', or 'skip'
+    const id = parts[2]      // short ID from pendingMedia map
+
+    await ctx.answerCallbackQuery()
+
+    if (action === 'skip') {
+      pendingMedia.delete(id)
+      await ctx.editMessageText('Обработка отменена.')
+      return
+    }
+
+    const url = pendingMedia.get(id)
+    pendingMedia.delete(id)
+
+    if (!url) {
+      await ctx.editMessageText('Ссылка устарела. Отправьте видео ещё раз.')
+      return
+    }
+
+    const editStatus = async (text: string) => {
+      try {
+        await ctx.editMessageText(text)
+      } catch { /* ignore edit errors */ }
+    }
+
+    try {
+      const result = await processMediaUrl(url, editStatus)
+
+      const lines = [
+        result.title,
+        'Длительность: ' + formatDuration(result.duration),
+        'Язык: ' + result.language,
+        '',
+        result.summary,
+      ]
+      if (result.noteUploaded) {
+        lines.push('', 'Заметка сохранена в Obsidian.')
+      }
+
+      const finalText = lines.join('\n')
+
+      if (finalText.length <= 4096) {
+        await ctx.editMessageText(finalText)
+      } else {
+        await ctx.editMessageText(finalText.slice(0, 4090) + '...')
+      }
+
+    } catch (err) {
+      let errorMsg: string
+      if (err instanceof DurationError) {
+        errorMsg = 'Видео слишком длинное (' + formatDuration(err.duration) + '). Максимум: ' + formatDuration(err.maxDuration) + '.'
+      } else if (err instanceof DownloadError) {
+        errorMsg = 'Не удалось скачать видео. Возможно, оно приватное или удалено.'
+      } else {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (msg.includes('Конвейер занят')) {
+          errorMsg = 'Конвейер занят обработкой других видео. Попробуйте через пару минут.'
+        } else {
+          errorMsg = 'Произошла ошибка при обработке видео. Попробуйте позже.'
+          console.error('[MEDIA] Pipeline error:', err)
+        }
+      }
+      await editStatus(errorMsg)
+    }
+    return
+  }
 
   // Stale session guard for nav/tag callbacks
   if ((data.startsWith('nav:') || data.startsWith('tag:')) && s.state === 'idle') {
