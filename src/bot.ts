@@ -593,7 +593,7 @@ bot.on('callback_query:data', async (ctx) => {
     const isVideoFile = mediaRef.startsWith('__video__:')
     const isVideo = isVideoRef || isVideoFile
     const noteTitle = isVideo
-      ? (ctx.callbackQuery.message?.text?.split('\n')[0]?.replace('Видео: ', '') || 'Видео')
+      ? (ctx.callbackQuery.message?.text?.split('\n')[0]?.replace('Видео: ', '').replace(/\s*\(\d+\s*файл[а-я\/]*\)\s*$/i, '') || 'Видео')
       : `Видео: ${mediaRef}`
 
     if (action === 'nosub') {
