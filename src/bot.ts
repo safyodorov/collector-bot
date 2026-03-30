@@ -854,6 +854,7 @@ async function doSave(ctx: MyContext, title: string) {
 
   // Check if media pipeline is running for this chat
   const pipeline = runningPipelines.get(chatId)
+  console.log('[DOSAVE] chatId=%d pipeline=%s title=%s folder=%s', chatId, pipeline ? 'YES' : 'NO', title?.slice(0, 30), s.selectedFolder)
   if (pipeline) {
     await ctx.reply('Ожидаю завершения обработки видео...')
     try {
@@ -928,6 +929,7 @@ async function doSave(ctx: MyContext, title: string) {
       const noteTags = [...s.selectedTags, 'video']
       if (transcriptSaved) noteTags.push('transcript')
 
+      console.log('[MEDIA] Saving note: title=%s folder=%s tags=%s textLen=%d', finalTitle, s.selectedFolder, noteTags.join(','), noteText.length)
       const result = await saveEntry({
         title: finalTitle,
         text: noteText,
