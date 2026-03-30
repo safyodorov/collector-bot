@@ -878,10 +878,10 @@ async function doSave(ctx: MyContext, title: string) {
       if (pipeline.saveTranscript && mediaResult.textWithTimecodes) {
         try {
           const { putFile, ensureDir } = await import('./services/webdav.js')
-          await ensureDir(s.selectedFolder)
+          await ensureDir(`${VAULT_PATH}${s.selectedFolder}`)
           const transcriptBuf = Buffer.from(mediaResult.textWithTimecodes, 'utf-8')
-          await putFile(`${s.selectedFolder}${transcriptFilename}`, transcriptBuf)
-          console.log(`[MEDIA] Transcript uploaded: /attachments/${transcriptFilename}`)
+          await putFile(`${VAULT_PATH}${s.selectedFolder}${transcriptFilename}`, transcriptBuf)
+          console.log(`[MEDIA] Transcript uploaded: ${VAULT_PATH}${s.selectedFolder}${transcriptFilename}`)
           transcriptSaved = true
         } catch (err) {
           console.error('[MEDIA] Transcript upload failed:', err)
