@@ -873,14 +873,14 @@ async function doSave(ctx: MyContext, title: string) {
       const date = new Date().toISOString().slice(0, 10)
       const transcriptFilename = buildFilename(finalTitle, date) .replace('.md', '_transcript.md')
 
-      // Upload transcript to attachments (only if user chose "full")
+      // Upload transcript next to the note (same folder, same vault)
       let transcriptSaved = false
       if (pipeline.saveTranscript && mediaResult.textWithTimecodes) {
         try {
           const { putFile, ensureDir } = await import('./services/webdav.js')
-          await ensureDir('/attachments/')
+          await ensureDir(s.selectedFolder)
           const transcriptBuf = Buffer.from(mediaResult.textWithTimecodes, 'utf-8')
-          await putFile(`/attachments/${transcriptFilename}`, transcriptBuf)
+          await putFile(`${s.selectedFolder}${transcriptFilename}`, transcriptBuf)
           console.log(`[MEDIA] Transcript uploaded: /attachments/${transcriptFilename}`)
           transcriptSaved = true
         } catch (err) {
