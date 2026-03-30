@@ -8,7 +8,7 @@ import { execSync } from 'child_process'
 import { writeFileSync, readFileSync, unlinkSync, mkdirSync } from 'fs'
 import { randomBytes } from 'node:crypto'
 import { extractVideoUrl, formatDuration, getVideoInfo, DurationError, DownloadError } from './services/downloader.js'
-import { processMediaUrl, processVideoFile, type PipelineResult } from './services/media-pipeline.js'
+import { processMediaUrl, processVideoFiles, type PipelineResult, type MultiVideoResult } from './services/media-pipeline.js'
 
 // Session state
 interface SessionData {
@@ -617,18 +617,27 @@ bot.on('callback_query:data', async (ctx) => {
     let pipelinePromise: Promise<PipelineResult>
 
     if (isVideoRef) {
-      // Download video first, then process
+      // Скачиваем все видео, потом обрабатываем каждое
       const refs = pendingVideoRefs.get(chatId) || []
       pendingVideoRefs.delete(chatId)
       const title = noteTitle
       pipelinePromise = (async () => {
-        await editStatus('Скачиваю видео...')
+        await editStatus(`Скачиваю видео (${refs.length} шт.)...`)
         const bufs: Buffer[] = []
         for (const ref of refs) {
           try { bufs.push(await downloadTelegramFile(ctx, ref.fileId, chatId, ref.messageId)) } catch (e) { console.error('[VIDEO] download fail:', e) }
         }
         if (bufs.length === 0) throw new Error('Не удалось скачать видео')
-        return processVideoFile(bufs[0], title, editStatus)
+        const multi = await processVideoFiles(bufs, title, editStatus)
+        // Конвертируем MultiVideoResult → PipelineResult для совместимости
+        return {
+          title: multi.title,
+          duration: multi.totalDuration,
+          language: multi.items[0]?.language || 'ru',
+          summary: multi.combinedSummary,
+          textWithTimecodes: multi.combinedTranscript,
+          noteUploaded: false,
+        } as PipelineResult
       })()
     } else if (isVideoFile) {
       const videoBuffers = pendingVideoBuffers.get(chatId) || []
@@ -637,7 +646,17 @@ bot.on('callback_query:data', async (ctx) => {
         await editStatus('Видео не найдено. Отправьте ещё раз.')
         return
       }
-      pipelinePromise = processVideoFile(videoBuffers[0], noteTitle, editStatus)
+      pipelinePromise = (async () => {
+        const multi = await processVideoFiles(videoBuffers, noteTitle, editStatus)
+        return {
+          title: multi.title,
+          duration: multi.totalDuration,
+          language: multi.items[0]?.language || 'ru',
+          summary: multi.combinedSummary,
+          textWithTimecodes: multi.combinedTranscript,
+          noteUploaded: false,
+        } as PipelineResult
+      })()
     } else {
       // Process URL
       pipelinePromise = processMediaUrl(mediaRef, editStatus)
@@ -888,6 +907,14 @@ async function doSave(ctx: MyContext, title: string) {
 
       // Compose note text
       const headerLines = []
+      // Количество видео если больше одного
+      if (mediaResult.duration > 0) {
+        const videoCountMatch = mediaResult.summary.match(/^## Видео \d+/m)
+        if (videoCountMatch) {
+          const count = (mediaResult.summary.match(/^## Видео \d+/gm) || []).length
+          headerLines.push(`> 📹 Видео: ${count} шт.`)
+        }
+      }
       if (videoSaved) {
         headerLines.push(`> 🎥 Видео: ![[${videoFilename}]]`)
       }

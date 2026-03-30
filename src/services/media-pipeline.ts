@@ -22,6 +22,16 @@ export interface PipelineResult {
   noteUploaded: boolean
 }
 
+/** Результат обработки нескольких видео */
+export interface MultiVideoResult {
+  title: string
+  videoCount: number
+  items: PipelineResult[]
+  combinedSummary: string
+  combinedTranscript: string
+  totalDuration: number
+}
+
 // --- Pipeline ---
 
 /**
@@ -75,6 +85,51 @@ export async function processVideoFile(
     activePipelines--
     if (existsSync(videoPath)) try { unlinkSync(videoPath) } catch {}
     if (existsSync(audioPath)) try { unlinkSync(audioPath) } catch {}
+  }
+}
+
+/**
+ * Обработка нескольких видео — каждое транскрибируется и саммаризируется отдельно,
+ * результаты объединяются в одну заметку
+ */
+export async function processVideoFiles(
+  videoBuffers: Buffer[],
+  title: string,
+  onProgress: (msg: string) => Promise<void>,
+): Promise<MultiVideoResult> {
+  const items: PipelineResult[] = []
+
+  for (let i = 0; i < videoBuffers.length; i++) {
+    const label = videoBuffers.length > 1 ? ` (${i + 1}/${videoBuffers.length})` : ''
+    await onProgress(`Обрабатываю видео${label}...`)
+    const result = await processVideoFile(videoBuffers[i], `${title}${label}`, async (msg) => {
+      await onProgress(`Видео ${i + 1}/${videoBuffers.length}: ${msg}`)
+    })
+    items.push(result)
+  }
+
+  // Объединяем транскрипты и саммари
+  const combinedTranscript = items.map((r, i) =>
+    videoBuffers.length > 1
+      ? `## Видео ${i + 1}\n\n${r.textWithTimecodes}`
+      : r.textWithTimecodes
+  ).join('\n\n---\n\n')
+
+  const combinedSummary = items.map((r, i) =>
+    videoBuffers.length > 1
+      ? `## Видео ${i + 1}\n\n${r.summary}`
+      : r.summary
+  ).join('\n\n---\n\n')
+
+  const totalDuration = items.reduce((sum, r) => sum + r.duration, 0)
+
+  return {
+    title,
+    videoCount: videoBuffers.length,
+    items,
+    combinedSummary,
+    combinedTranscript,
+    totalDuration,
   }
 }
 
