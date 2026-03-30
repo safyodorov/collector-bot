@@ -58,12 +58,11 @@ export function buildTagKeyboard(categoryKey: string, selectedTags: string[]): I
   }
   if (tags.length % 2 !== 0) kb.row()
 
+  kb.text('Без тегов', 'tag:none').text('✏️ Свой', 'tag:custom').row()
   const doneLabel = selectedTags.length > 0
     ? `Готово (${selectedTags.length})`
     : 'Готово'
   kb.text(doneLabel, 'tag:done').row()
-  kb.text('Без тегов', 'tag:none').row()
-  kb.text('✏️ Написать свой', 'tag:custom').row()
   kb.text('Отмена', 'nav:cancel')
   return kb
 }
