@@ -871,7 +871,7 @@ async function doSave(ctx: MyContext, title: string) {
 
       // Build enriched text: summary + link to transcript
       const date = new Date().toISOString().slice(0, 10)
-      const transcriptFilename = buildFilename(finalTitle, date) .replace('.md', '_transcript.md')
+      const transcriptFilename = buildFilename(finalTitle, date).replace('.md', '.transcript.md')
 
       // Upload transcript next to the note (same folder, same vault)
       let transcriptSaved = false
@@ -879,7 +879,19 @@ async function doSave(ctx: MyContext, title: string) {
         try {
           const { putFile, ensureDir } = await import('./services/webdav.js')
           await ensureDir(`${VAULT_PATH}${s.selectedFolder}`)
-          const transcriptBuf = Buffer.from(mediaResult.textWithTimecodes, 'utf-8')
+          const transcriptContent = [
+            '---',
+            'type: transcript',
+            `parent: "[[${finalTitle}]]"`,
+            `source: ${s.originalUrl || 'Telegram видео'}`,
+            `date: ${date}`,
+            '---',
+            '',
+            `# ${finalTitle} — транскрипция`,
+            '',
+            mediaResult.textWithTimecodes,
+          ].join('\n')
+          const transcriptBuf = Buffer.from(transcriptContent, 'utf-8')
           await putFile(`${VAULT_PATH}${s.selectedFolder}${transcriptFilename}`, transcriptBuf)
           console.log(`[MEDIA] Transcript uploaded: ${VAULT_PATH}${s.selectedFolder}${transcriptFilename}`)
           transcriptSaved = true
@@ -923,7 +935,10 @@ async function doSave(ctx: MyContext, title: string) {
       }
       headerLines.push(`> Источник: ${s.originalUrl || 'Telegram видео'}`)
       headerLines.push(`> Длительность: ${formatDuration(mediaResult.duration)} | Язык: ${mediaResult.language}`)
-      const noteText = `${headerLines.join('\n')}\n\n${mediaResult.summary}`
+      // Wiki-ссылка на транскрипцию (без .md) в формате Obsidian
+      const transcriptWikiName = transcriptSaved ? transcriptFilename.replace(/\.md$/, '') : ''
+      const transcriptFooter = transcriptSaved ? `\n\n---\nПолная транскрипция: [[${transcriptWikiName}]]` : ''
+      const noteText = `${headerLines.join('\n')}\n\n${mediaResult.summary}${transcriptFooter}`
 
       const noteTags = [...s.selectedTags, 'video']
       if (transcriptSaved) noteTags.push('transcript')
@@ -940,6 +955,7 @@ async function doSave(ctx: MyContext, title: string) {
         hash: s.hash,
         folderPath: s.selectedFolder,
         tags: noteTags,
+        transcriptLink: transcriptWikiName || undefined,
       }, [], undefined)
 
       const tagsDisplay = s.selectedTags.length > 0 ? s.selectedTags.map(t => '#' + t).join(' ') : 'нет'

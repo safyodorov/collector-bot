@@ -11,6 +11,7 @@ export interface NoteData {
   text?: string
   attachments: string[]
   pdfAttachment?: string
+  transcriptLink?: string
 }
 
 export function buildMarkdown(data: NoteData): string {
@@ -29,6 +30,7 @@ export function buildMarkdown(data: NoteData): string {
   lines.push(`date: ${data.date}`)
   lines.push(`type: ${data.type}`)
   lines.push(`content_hash: "${data.contentHash}"`)
+  if (data.transcriptLink) lines.push(`transcript: "[[${escapeYaml(data.transcriptLink)}]]"`)
 
   lines.push('---')
   lines.push('')

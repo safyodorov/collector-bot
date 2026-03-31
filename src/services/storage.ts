@@ -38,6 +38,7 @@ export async function saveEntry(
     hash: string
     folderPath: string       // e.g. "/Бизнес/WB/"
     tags: string[]
+    transcriptLink?: string
   },
   photoBuffers: { name: string; buffer: Buffer }[],
   pdfFile?: { buffer: Buffer; filename: string }
@@ -81,6 +82,7 @@ export async function saveEntry(
     text: data.text || undefined,
     attachments,
     pdfAttachment,
+    transcriptLink: data.transcriptLink,
   }
 
   const markdown = buildMarkdown(noteData)
