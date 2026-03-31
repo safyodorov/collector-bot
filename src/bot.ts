@@ -930,15 +930,13 @@ async function doSave(ctx: MyContext, title: string) {
       if (videoSaved) {
         headerLines.push(`> 🎥 Видео: ![[${videoFilename}]]`)
       }
+      const transcriptWikiName = transcriptSaved ? transcriptFilename.replace(/\.md$/, '') : ''
       if (transcriptSaved) {
-        headerLines.push(`> 🎬 Транскрипт: ![[${transcriptFilename}]]`)
+        headerLines.push(`> 📝 Транскрипция: [[${transcriptWikiName}]]`)
       }
       headerLines.push(`> Источник: ${s.originalUrl || 'Telegram видео'}`)
       headerLines.push(`> Длительность: ${formatDuration(mediaResult.duration)} | Язык: ${mediaResult.language}`)
-      // Wiki-ссылка на транскрипцию (без .md) в формате Obsidian
-      const transcriptWikiName = transcriptSaved ? transcriptFilename.replace(/\.md$/, '') : ''
-      const transcriptFooter = transcriptSaved ? `\n\n---\nПолная транскрипция: [[${transcriptWikiName}]]` : ''
-      const noteText = `${headerLines.join('\n')}\n\n${mediaResult.summary}${transcriptFooter}`
+      const noteText = `${headerLines.join('\n')}\n\n${mediaResult.summary}`
 
       const noteTags = [...s.selectedTags, 'video']
       if (transcriptSaved) noteTags.push('transcript')
